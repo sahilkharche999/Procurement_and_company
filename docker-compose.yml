@@ -1,0 +1,27 @@
+version: "3.9"
+
+services:
+  frontend:
+    image: pco_frontend_image:latest
+    container_name: pco-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - frontend
+
+  backend:
+    image: pco_backend_image:latest
+    container_name: pco-backend
+    ports:
+      - "8000:8000"
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB_NAME: ${MONGO_DB_NAME}
+    networks:
+      - frontend
+
+networks:
+  frontend:
+    driver: bridge
