@@ -199,7 +199,10 @@ export function BudgetRow({
               ))}
             </select>
           ) : (
-            rooms.find((r) => r._id === item.room)?.name || item.room
+            item.room_name ||
+            (typeof item.room === "object" ? item.room?.name : null) ||
+            rooms.find((r) => r._id === item.room)?.name ||
+            "Unknown Room"
           )}
         </td>
 

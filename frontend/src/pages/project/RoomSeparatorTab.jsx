@@ -13,8 +13,7 @@ import {
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { useProjects } from "../../redux/hooks/project/useProjects";
-
-const BASE = "http://localhost:8000";
+import { buildServerUrl } from "../../config";
 
 // Helper for polygon SVG rendering
 const toSvgPoints = (polygon, width, height) => {
@@ -128,7 +127,7 @@ function DrawingCanvas({ image, drawnRooms, setDrawnRooms }) {
         onClick={handleClick}
       >
         <img
-          src={`${BASE}${image.url}`}
+          src={buildServerUrl(image.url)}
           alt={image.filename}
           className="max-w-full max-h-full object-contain block pointer-events-none"
           draggable={false}
@@ -292,7 +291,7 @@ export function RoomSeparatorTab({ project }) {
       try {
         setError("");
         const res = await fetch(
-          `${BASE}/projects/${project._id || project.id}/rooms/${room.id}?image_filename=${encodeURIComponent(currentFileName)}`,
+          `${buildServerUrl(`/projects/${project._id || project.id}/rooms/${room.id}`)}?image_filename=${encodeURIComponent(currentFileName)}`,
           {
             method: "DELETE",
           },
@@ -323,7 +322,9 @@ export function RoomSeparatorTab({ project }) {
       });
 
       const res = await fetch(
-        `${BASE}/projects/${project._id || project.id}/rooms/${room.id}/analyze`,
+        buildServerUrl(
+          `/projects/${project._id || project.id}/rooms/${room.id}/analyze`,
+        ),
         { method: "POST" },
       );
       if (!res.ok) throw new Error("Failed to start analysis");
@@ -343,7 +344,9 @@ export function RoomSeparatorTab({ project }) {
       for (const roomId of pollingRooms) {
         try {
           const res = await fetch(
-            `${BASE}/projects/${project._id || project.id}/rooms/${roomId}/analysis-status`,
+            buildServerUrl(
+              `/projects/${project._id || project.id}/rooms/${roomId}/analysis-status`,
+            ),
           );
           if (res.ok) {
             const data = await res.json();
@@ -418,7 +421,7 @@ export function RoomSeparatorTab({ project }) {
       };
 
       const res = await fetch(
-        `${BASE}/projects/${project._id || project.id}/rooms/extract`,
+        buildServerUrl(`/projects/${project._id || project.id}/rooms/extract`),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -8,10 +8,13 @@ import GroupDialog from "./GroupDialog";
 import CreateGroupDialog from "./CreateGroupDialog";
 import GroupAssignPopover from "./GroupAssignPopover";
 import AssignDrawnMaskDialog from "./AssignDrawnMaskDialog";
+import { buildServerUrl } from "../../config";
 
 export default function EditorLayout() {
   const { roomId } = useParams();
   const [bgImageUrl, setBgImageUrl] = useState(null);
+  const [roomIncludedInBudget, setRoomIncludedInBudget] = useState(false);
+  const [roomIncludeLoading, setRoomIncludeLoading] = useState(false);
 
   // ─── Core state ────────────────────────────────────────────────────────────
   const [groups, setGroups] = useState(() => {
@@ -45,17 +48,19 @@ export default function EditorLayout() {
     if (!roomId) return;
     const fetchRoomData = async () => {
       try {
-        const res = await fetch(`http://localhost:8000/rooms/${roomId}`);
+        const res = await fetch(buildServerUrl(`/rooms/${roomId}`));
         if (!res.ok) throw new Error("Failed to fetch room");
         const roomData = await res.json();
 
+        setRoomIncludedInBudget(!!roomData.is_included_in_budget);
+
         if (roomData.room_image_url) {
-          setBgImageUrl(`http://localhost:8000${roomData.room_image_url}`);
+          setBgImageUrl(buildServerUrl(roomData.room_image_url));
         }
 
         if (roomData.masks_polygons_url) {
           const masksRes = await fetch(
-            `http://localhost:8000${roomData.masks_polygons_url}?t=${Date.now()}`,
+            `${buildServerUrl(roomData.masks_polygons_url)}?t=${Date.now()}`,
             { cache: "no-store" },
           );
           if (masksRes.ok) {
@@ -119,6 +124,67 @@ export default function EditorLayout() {
   const [history, setHistory] = useState([{ masks, groups }]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
+  const isMongoObjectId = (value) =>
+    typeof value === "string" && /^[a-f\d]{24}$/i.test(value);
+
+  const normalizeGroup = (raw) => {
+    if (!raw) return null;
+    const id = raw.id || raw._id;
+    if (!id) return null;
+    return {
+      id,
+      name: raw.name || "",
+      code: raw.code || "",
+      color: Array.isArray(raw.color) ? raw.color : [141, 106, 59],
+      type: raw.type || "FF&E",
+      room: raw.room || roomId || "",
+      project: raw.project || "",
+    };
+  };
+
+  const createGroupOnServer = async (group) => {
+    if (!roomId) throw new Error("Missing room id");
+    const payload = {
+      name: group.name || "",
+      code: group.code || "",
+      color: Array.isArray(group.color) ? group.color : [141, 106, 59],
+      type: group.type || "FF&E",
+      room: roomId,
+    };
+    const res = await fetch(buildServerUrl("/groups"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("Failed to create group");
+    return normalizeGroup(await res.json());
+  };
+
+  const updateGroupOnServer = async (groupId, group) => {
+    const payload = {
+      name: group.name || "",
+      code: group.code || "",
+      color: Array.isArray(group.color) ? group.color : [141, 106, 59],
+      type: group.type || "FF&E",
+    };
+    const res = await fetch(buildServerUrl(`/groups/${groupId}`), {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) throw new Error("Failed to update group");
+    return normalizeGroup(await res.json());
+  };
+
+  const deleteGroupOnServer = async (groupId) => {
+    const res = await fetch(buildServerUrl(`/groups/${groupId}`), {
+      method: "DELETE",
+    });
+    if (!res.ok && res.status !== 404) {
+      throw new Error("Failed to delete group");
+    }
+  };
+
   const pushToHistory = (newMasks, newGroups) => {
     const newHistory = history.slice(0, historyIndex + 1);
     newHistory.push({
@@ -148,7 +214,7 @@ export default function EditorLayout() {
   const handlePersist = useCallback(async () => {
     try {
       setSaveStatus("Saving to backend...");
-      const res = await fetch(`http://localhost:8000/rooms/${roomId}/masks`, {
+      const res = await fetch(buildServerUrl(`/rooms/${roomId}/masks`), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ masks, groups }),
@@ -162,6 +228,31 @@ export default function EditorLayout() {
       setTimeout(() => setSaveStatus(null), 2500);
     }
   }, [roomId, masks, groups]);
+
+  const handleToggleRoomIncludedInBudget = useCallback(
+    async (nextValue) => {
+      if (!roomId) return;
+      try {
+        setRoomIncludeLoading(true);
+        const res = await fetch(
+          buildServerUrl(`/rooms/${roomId}/include-in-budget`),
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ is_included_in_budget: nextValue }),
+          },
+        );
+        if (!res.ok) throw new Error("Failed to update room budget flag");
+        const updatedRoom = await res.json();
+        setRoomIncludedInBudget(!!updatedRoom.is_included_in_budget);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setRoomIncludeLoading(false);
+      }
+    },
+    [roomId],
+  );
 
   // ─── Keyboard shortcuts ───────────────────────────────────────────────────
   useEffect(() => {
@@ -361,18 +452,60 @@ export default function EditorLayout() {
     pushToHistory(newMasks, groups);
   };
 
-  const handleGroupCreated = (newGroup) => {
-    const newGroups = { ...groups, [newGroup.id]: newGroup };
-    setGroups(newGroups);
-    setSelectedGroupId(newGroup.id);
-    setEditorMode("group");
-    pushToHistory(masks, newGroups);
+  const handleGroupCreated = async (newGroupDraft) => {
+    try {
+      const createdGroup = await createGroupOnServer(newGroupDraft);
+      if (!createdGroup) return null;
+
+      const newGroups = { ...groups, [createdGroup.id]: createdGroup };
+      setGroups(newGroups);
+      setSelectedGroupId(createdGroup.id);
+      setEditorMode("group");
+      pushToHistory(masks, newGroups);
+      return createdGroup;
+    } catch (err) {
+      console.error(err);
+      return null;
+    }
   };
 
-  const handleGroupUpdated = (updatedGroup) => {
-    const newGroups = { ...groups, [updatedGroup.id]: updatedGroup };
-    setGroups(newGroups);
-    pushToHistory(masks, newGroups);
+  const handleGroupUpdated = async (updatedGroup) => {
+    try {
+      let savedGroup = null;
+      let newMasks = masks;
+      let newSelectedGroupId = selectedGroupId;
+      const previousId = updatedGroup.id;
+
+      if (isMongoObjectId(previousId)) {
+        savedGroup = await updateGroupOnServer(previousId, updatedGroup);
+      } else {
+        // Legacy local/random group id: create canonical Mongo group and remap masks.
+        savedGroup = await createGroupOnServer(updatedGroup);
+        newMasks = masks.map((m) =>
+          m.group_id === previousId ? { ...m, group_id: savedGroup.id } : m,
+        );
+        if (newSelectedGroupId === previousId) {
+          newSelectedGroupId = savedGroup.id;
+        }
+      }
+
+      if (!savedGroup) return false;
+
+      const baseGroups = { ...groups };
+      if (previousId !== savedGroup.id) delete baseGroups[previousId];
+      const newGroups = { ...baseGroups, [savedGroup.id]: savedGroup };
+
+      setGroups(newGroups);
+      if (newMasks !== masks) setMasks(newMasks);
+      if (newSelectedGroupId !== selectedGroupId) {
+        setSelectedGroupId(newSelectedGroupId);
+      }
+      pushToHistory(newMasks, newGroups);
+      return true;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
   };
 
   /**
@@ -382,41 +515,70 @@ export default function EditorLayout() {
    *  • Clear selectedGroupId if it was the deleted group
    *  • Push to undo/redo history
    */
-  const handleDeleteGroup = (groupId) => {
-    const { [groupId]: _removed, ...newGroups } = groups;
-    const newMasks = masks.map((m) =>
-      m.group_id === groupId ? { ...m, group_id: null } : m,
-    );
-    setGroups(newGroups);
-    setMasks(newMasks);
-    if (selectedGroupId === groupId) setSelectedGroupId(null);
-    pushToHistory(newMasks, newGroups);
+  const handleDeleteGroup = async (groupId) => {
+    try {
+      if (isMongoObjectId(groupId)) {
+        await deleteGroupOnServer(groupId);
+      }
+
+      const { [groupId]: _removed, ...newGroups } = groups;
+      const newMasks = masks.map((m) =>
+        m.group_id === groupId ? { ...m, group_id: null } : m,
+      );
+      setGroups(newGroups);
+      setMasks(newMasks);
+      if (selectedGroupId === groupId) setSelectedGroupId(null);
+      pushToHistory(newMasks, newGroups);
+      return true;
+    } catch (err) {
+      console.error(err);
+      return false;
+    }
   };
 
   /**
    * Delete all groups that currently have no masks assigned to them.
    */
-  const handleDeleteEmptyGroups = () => {
+  const handleDeleteEmptyGroups = async () => {
     const groupIdsWithMasks = new Set(
       masks.map((m) => m.group_id).filter(Boolean),
     );
+    const emptyGroupIds = Object.keys(groups).filter(
+      (id) => !groupIdsWithMasks.has(id),
+    );
+
+    if (emptyGroupIds.length === 0) return;
+
+    const keepIds = new Set();
+    for (const id of emptyGroupIds) {
+      if (!isMongoObjectId(id)) {
+        continue;
+      }
+
+      try {
+        await deleteGroupOnServer(id);
+      } catch (err) {
+        console.error(err);
+        keepIds.add(id);
+      }
+    }
+
     const newGroups = { ...groups };
     let hasDeletions = false;
-
-    Object.keys(groups).forEach((id) => {
-      if (!groupIdsWithMasks.has(id)) {
+    emptyGroupIds.forEach((id) => {
+      if (!keepIds.has(id)) {
         delete newGroups[id];
         hasDeletions = true;
       }
     });
 
-    if (hasDeletions) {
-      setGroups(newGroups);
-      if (selectedGroupId && !newGroups[selectedGroupId]) {
-        setSelectedGroupId(null);
-      }
-      pushToHistory(masks, newGroups);
+    if (!hasDeletions) return;
+
+    setGroups(newGroups);
+    if (selectedGroupId && !newGroups[selectedGroupId]) {
+      setSelectedGroupId(null);
     }
+    pushToHistory(masks, newGroups);
   };
 
   const handleMaskClickFromSidebar = (maskId) => {
@@ -435,6 +597,9 @@ export default function EditorLayout() {
       <Sidebar
         groups={groups}
         masks={masks}
+        roomIncludedInBudget={roomIncludedInBudget}
+        roomIncludeLoading={roomIncludeLoading}
+        onToggleRoomIncludedInBudget={handleToggleRoomIncludedInBudget}
         selectedGroupId={selectedGroupId}
         setSelectedGroupId={setSelectedGroupId}
         editorMode={editorMode}
@@ -557,7 +722,7 @@ export default function EditorLayout() {
         open={groupDialogOpen}
         onClose={() => setGroupDialogOpen(false)}
         groups={groups}
-        setGroups={setGroups}
+        onCreateGroup={handleGroupCreated}
         assignGroup={assignGroup}
       />
 

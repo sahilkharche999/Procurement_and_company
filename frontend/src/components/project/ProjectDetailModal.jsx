@@ -17,13 +17,12 @@ import {
     Save,
     RefreshCw,
 } from "lucide-react"
-
-const BASE = "http://localhost:8000"
+import { buildServerUrl } from "../../config"
 
 /* ── Tiny image thumbnail card ─────────────────────────────────────────── */
 function ThumbCard({ img, mode, checked, onToggle }) {
     const [err, setErr] = useState(false)
-    const url = `${BASE}${img.url}`
+    const url = buildServerUrl(img.url)
 
     return (
         <div

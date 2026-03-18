@@ -6,6 +6,9 @@ import SelectedGroupCard from "./SelectedGroupCard";
 export default function Sidebar({
   groups,
   masks,
+  roomIncludedInBudget,
+  roomIncludeLoading,
+  onToggleRoomIncludedInBudget,
   selectedGroupId,
   setSelectedGroupId,
   editorMode,
@@ -77,6 +80,41 @@ export default function Sidebar({
             )}
           >
             Group Mode
+          </button>
+        </div>
+
+        <div className="mt-3 px-2.5 py-2 border border-gray-200 bg-gray-50 flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold text-gray-700 uppercase tracking-wide">
+              Include in Budget
+            </p>
+            <p className="text-[10px] text-gray-500 truncate">
+              Toggle room budget visibility
+            </p>
+          </div>
+
+          <button
+            type="button"
+            disabled={roomIncludeLoading}
+            onClick={() => onToggleRoomIncludedInBudget(!roomIncludedInBudget)}
+            className={cn(
+              "relative inline-flex h-6 w-11 items-center border transition-colors disabled:opacity-60 disabled:cursor-not-allowed",
+              roomIncludedInBudget
+                ? "bg-emerald-500 border-emerald-600"
+                : "bg-gray-300 border-gray-400",
+            )}
+            title={
+              roomIncludedInBudget
+                ? "Room included in budget"
+                : "Room excluded from budget"
+            }
+          >
+            <span
+              className={cn(
+                "inline-block h-4 w-4 bg-white transition-transform",
+                roomIncludedInBudget ? "translate-x-6" : "translate-x-1",
+              )}
+            />
           </button>
         </div>
       </div>

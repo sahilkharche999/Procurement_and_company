@@ -66,16 +66,16 @@ export default function SelectedGroupCard({
   };
 
   // ── Save ────────────────────────────────────────────────────────────────────
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editName.trim()) return;
-    onUpdate({
+    const ok = await onUpdate({
       ...group,
       name: editName.trim(),
       code: editCode.trim(),
       color: hexToRgb(editColor),
       type: editType,
     });
-    setIsDirty(false);
+    if (ok) setIsDirty(false);
   };
 
   // ── Cancel ──────────────────────────────────────────────────────────────────

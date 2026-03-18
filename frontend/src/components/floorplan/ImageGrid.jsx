@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { buildServerUrl } from "../../config";
 
 /* ── Single image card ───────────────────────────────────────────────────── */
 function ImageCard({ img, isSelected, onSelect }) {
-  const imageUrl = `http://localhost:8000${img.url}`;
+  const imageUrl = buildServerUrl(img.url);
   const [imgError, setImgError] = useState(false);
 
   return (

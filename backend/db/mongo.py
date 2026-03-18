@@ -47,3 +47,7 @@ def get_pdf_documents_collection():
 
 def get_processing_jobs_collection():
     return get_db()["processing_jobs"]
+
+
+def get_groups_collection():
+    return get_db()["groups"]

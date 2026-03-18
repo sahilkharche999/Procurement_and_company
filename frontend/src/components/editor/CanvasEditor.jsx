@@ -10,7 +10,7 @@ import {
 } from "react-konva";
 import { useState, useRef, useEffect } from "react";
 import useImage from "use-image";
-import defaultFloorImage from "../../data/floorplan.png";
+// import defaultFloorImage from "../../data/floorplan.png";
 
 export default function CanvasEditor({
   groups,
@@ -30,7 +30,7 @@ export default function CanvasEditor({
   onUpdateMaskPolygons, // (maskId, newPolygons) => void
   bgImageUrl,
 }) {
-  const [image] = useImage(bgImageUrl || defaultFloorImage);
+  const [image] = useImage(bgImageUrl);
   const stageRef = useRef(null);
   const trRef = useRef(null);
   const maskRefs = useRef({});

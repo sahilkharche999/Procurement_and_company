@@ -244,8 +244,13 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
         }
         if (!item.hidden_from_total) lastTotal += item.extended || 0;
       } else if (groupByRoom) {
-        const roomObj = rooms.find((r) => r._id === item.room);
-        const key = roomObj ? roomObj.name : item.room || "Unassigned Room";
+        const roomId = typeof item.room === "object" ? item.room?._id : item.room;
+        const roomObj = rooms.find((r) => r._id === roomId);
+        const key =
+          item.room_name ||
+          (typeof item.room === "object" ? item.room?.name : null) ||
+          roomObj?.name ||
+          "Unknown Room";
         if (key !== lastGroupKey) {
           rows.push(
             <TableRow
@@ -308,7 +313,15 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
     }
     if (groupByRoom) {
       const uniqueRooms = [
-        ...new Set(items.map((i) => i.room || "Unassigned Room")),
+        ...new Set(
+          items.map(
+            (i) =>
+              i.room_name ||
+              (typeof i.room === "object" ? i.room?.name : null) ||
+              rooms.find((r) => r._id === (typeof i.room === "object" ? i.room?._id : i.room))?.name ||
+              "Unknown Room",
+          ),
+        ),
       ];
       uniqueRooms.forEach((room) => {
         if (roomTotals[room] != null) {

@@ -7,27 +7,23 @@ export default function GroupDialog({
   open,
   onClose,
   groups,
-  setGroups,
+  onCreateGroup,
   assignGroup,
 }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [color, setColor] = useState("#3b82f6");
 
-  const handleCreate = () => {
-    const id = `group_${Date.now()}`;
+  const handleCreate = async () => {
+    const created = await onCreateGroup({
+      name,
+      code,
+      color: hexToRgb(color),
+      type: "FF&E",
+    });
+    if (!created?.id) return;
 
-    setGroups((prev) => ({
-      ...prev,
-      [id]: {
-        id,
-        name,
-        code,
-        color: hexToRgb(color),
-      },
-    }));
-
-    assignGroup(id);
+    assignGroup(created.id);
     onClose();
   };
 

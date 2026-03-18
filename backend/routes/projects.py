@@ -408,6 +408,10 @@ async def extract_rooms(project_id: str, body: dict):
                     # Prefer existing valid Mongo ObjectIds, fallback generator
                     "diagram": diagram["_id"],
                     "project": ObjectId(project_id),
+                    "name": res["name"],
+                    "notes": "",
+                    "created_by": "system",
+                    "is_included_in_budget": False,
                     "room_name": res["name"],
                     "room_image_url": res["url"],
                     "mask_array": res["mask_array"],
@@ -415,7 +419,10 @@ async def extract_rooms(project_id: str, body: dict):
                 }
 
                 # Check existance by name in current diagram to avoid duplicate IDs during re-save
-                exist = await rooms_coll.find_one({"diagram": diagram["_id"], "room_name": res["name"]})
+                exist = await rooms_coll.find_one({
+                    "diagram": diagram["_id"],
+                    "$or": [{"name": res["name"]}, {"room_name": res["name"]}],
+                })
                 if exist:
                     await rooms_coll.update_one({"_id": exist["_id"]}, {"$set": new_room})
                     room_ids.append(exist["_id"])
@@ -473,7 +480,8 @@ async def delete_room(project_id: str, room_id: str, image_filename: str):
         "$or": [
             # Check string representation of _id in case room_id is valid 24-char ObjectId
             {"_id": ObjectId(room_id) if len(room_id) == 24 else room_id},
-            {"room_name": room_id}
+            {"room_name": room_id},
+            {"name": room_id},
         ]
     }
 

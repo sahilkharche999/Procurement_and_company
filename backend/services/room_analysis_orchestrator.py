@@ -118,7 +118,11 @@ def run_room_analysis_pipeline(room_id: str, project_id: str, room_image_url: st
             masks_data = pickle.load(f)
 
         # Build relational groups dictionary
-        groups_dict = build_groups(masks_data)
+        groups_dict = build_groups(
+            masks_data,
+            room_id=room_id,
+            project_id=project_id,
+        )
         save_groups_to_json(groups_dict, groups_json_path)
 
         # 5. Combine Masks and Groups into Polygons

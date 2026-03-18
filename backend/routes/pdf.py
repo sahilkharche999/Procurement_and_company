@@ -4,10 +4,9 @@ from datetime import datetime
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Form
 
+from config import BASE_DIR
 from db.mongo import get_projects_collection, get_project_sources_collection, get_pdf_documents_collection
 from schemas.budget import PdfDocumentOut
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 router = APIRouter(prefix="/pdf", tags=["PDF"])
 

@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { Button } from "../../components/ui/button";
+import { Switch } from "../../components/ui/switch";
 import {
   CopyPlus,
   Cpu,
@@ -20,8 +21,7 @@ import {
 import { api } from "../../redux/api/apiClient";
 import { useProjects } from "../../redux/hooks/project/useProjects";
 import { useNavigate } from "react-router-dom";
-
-const BASE = "http://localhost:8000";
+import { buildServerUrl } from "../../config";
 
 /* ══════════════════════════════════════════════════════════════════════════
    LIGHTBOX — full-screen image viewer
@@ -29,7 +29,7 @@ const BASE = "http://localhost:8000";
 function Lightbox({ images, startIndex, onClose }) {
   const [idx, setIdx] = useState(startIndex);
   const img = images[idx];
-  const url = `${BASE}${img.url}`;
+  const url = buildServerUrl(img.url);
   const hasPrev = idx > 0;
   const hasNext = idx < images.length - 1;
 
@@ -103,7 +103,7 @@ function RoomCard({ room, pageNum, projectId, onDoubleClick }) {
   const [state, setState] = useState("idle"); // idle | loading | done | error
   const [errorMsg, setErrorMsg] = useState("");
 
-  const url = room.url ? `${BASE}${room.url}` : "";
+  const url = room.url ? buildServerUrl(room.url) : "";
 
   const handleProcess = async (e) => {
     e.stopPropagation();
@@ -280,6 +280,35 @@ export function RoomProcessorTab({ project }) {
   const { loadOne } = useProjects();
   const [pollingRooms, setPollingRooms] = useState(new Set());
   const [roomStatus, setRoomStatus] = useState({});
+  const [roomBudgetInclude, setRoomBudgetInclude] = useState({});
+  const [roomBudgetLoading, setRoomBudgetLoading] = useState({});
+
+  const getRoomKey = (room) => room.id || room._id || room.name;
+
+  const handleToggleRoomBudget = async (room, nextValue) => {
+    const roomId = room.id || room._id;
+    const roomKey = getRoomKey(room);
+    if (!roomId || !roomKey) return;
+
+    try {
+      setRoomBudgetLoading((prev) => ({ ...prev, [roomKey]: true }));
+      const res = await fetch(buildServerUrl(`/rooms/${roomId}/include-in-budget`), {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ is_included_in_budget: nextValue }),
+      });
+      if (!res.ok) throw new Error("Failed to update room budget flag");
+      const updated = await res.json();
+      setRoomBudgetInclude((prev) => ({
+        ...prev,
+        [roomKey]: !!updated.is_included_in_budget,
+      }));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setRoomBudgetLoading((prev) => ({ ...prev, [roomKey]: false }));
+    }
+  };
 
   const handleProcessRoom = async (roomId, roomName) => {
     try {
@@ -291,7 +320,9 @@ export function RoomProcessorTab({ project }) {
       setPollingRooms((prev) => new Set(prev).add(roomId));
 
       const res = await fetch(
-        `${BASE}/projects/${project._id || project.id}/rooms/${roomId}/analyze`,
+        buildServerUrl(
+          `/projects/${project._id || project.id}/rooms/${roomId}/analyze`,
+        ),
         { method: "POST" },
       );
       if (!res.ok) throw new Error("Failed to start analysis");
@@ -312,7 +343,9 @@ export function RoomProcessorTab({ project }) {
       for (const roomId of pollingRooms) {
         try {
           const res = await fetch(
-            `${BASE}/projects/${project._id || project.id}/rooms/${roomId}/analysis-status`,
+            buildServerUrl(
+              `/projects/${project._id || project.id}/rooms/${roomId}/analysis-status`,
+            ),
           );
           if (res.ok) {
             const data = await res.json();
@@ -369,10 +402,14 @@ export function RoomProcessorTab({ project }) {
 
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {rooms.map((room) => {
-                const url = room.url ? `${BASE}${room.url}` : "";
+                const roomKey = getRoomKey(room);
+                const url = room.url ? buildServerUrl(room.url) : "";
+                const isIncludedInBudget =
+                  roomBudgetInclude[roomKey] ?? !!room.is_included_in_budget;
+                const isBudgetToggleLoading = !!roomBudgetLoading[roomKey];
                 return (
                   <div
-                    key={room.id || room.name}
+                    key={roomKey}
                     className="relative group cursor-pointer rounded-xl overflow-hidden transition-all duration-200 border-2 select-none flex flex-col border-border hover:border-violet-400/60 hover:shadow-md"
                     onDoubleClick={(e) => {
                       e.preventDefault();
@@ -416,12 +453,31 @@ export function RoomProcessorTab({ project }) {
                     </div>
 
                     <div className="px-2.5 py-2 border-t flex flex-col justify-between gap-2 min-w-0 bg-card border-border/50 h-[80px]">
-                      <span
-                        className="flex-1 min-w-0 text-[12px] font-semibold font-mono truncate leading-tight text-foreground/80 whitespace-normal"
-                        title={room.name}
-                      >
-                        {room.name}
-                      </span>
+                      <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <span
+                          className="flex-1 min-w-0 text-[12px] font-semibold font-mono truncate leading-tight text-foreground/80 whitespace-normal"
+                          title={room.name}
+                        >
+                          {room.name}
+                        </span>
+                        <Switch
+                          checked={isIncludedInBudget}
+                          onCheckedChange={(nextValue) => {
+                            handleToggleRoomBudget(room, nextValue);
+                          }}
+                          disabled={isBudgetToggleLoading}
+                          title={
+                            isIncludedInBudget
+                              ? "Included in budget"
+                              : "Excluded from budget"
+                          }
+                          className={`${
+                            isIncludedInBudget
+                              ? "border-violet-500! bg-violet-500!"
+                              : "border-violet-300! bg-gray-200!"
+                          }`}
+                        />
+                      </div>
                       {(() => {
                         // Priority: 1. local tracked status 2. backed mongo status 3. default structure
                         const local = roomStatus[room.id || room.name];

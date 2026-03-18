@@ -5,6 +5,9 @@ import string
 
 import cv2
 import numpy as np
+from pymongo import MongoClient
+
+from config import MONGO_URI, MONGO_DB_NAME
 
 
 def save_groups_to_json(groups, filepath="groups.json"):
@@ -59,11 +62,40 @@ def extract_mask_features(mask):
 # Helpers
 # ----------------------------
 def random_color():
-    return tuple(np.random.randint(50, 255, size=3).tolist())
+    return np.random.randint(50, 255, size=3).tolist()
 
 
 def random_name():
     return "Object_" + ''.join(random.choices(string.ascii_uppercase, k=3))
+
+
+def _persist_group_in_mongo(group_payload, room_id=None, project_id=None):
+    """
+    Creates a canonical group document in MongoDB and returns its _id as string.
+    Falls back to None if DB insert fails.
+    """
+    client = None
+    try:
+        client = MongoClient(MONGO_URI)
+        db = client[MONGO_DB_NAME]
+        groups_coll = db["groups"]
+        result = groups_coll.insert_one(
+            {
+                "name": group_payload.get("name", ""),
+                "code": group_payload.get("code", ""),
+                "color": group_payload.get("color", [141, 106, 59]),
+                "type": group_payload.get("type", "FF&E"),
+                "room": str(room_id or ""),
+                "project": str(project_id or ""),
+            }
+        )
+        return str(result.inserted_id)
+    except Exception as e:
+        print(f"[GroupingEngine] Failed to persist group in MongoDB: {e}")
+        return None
+    finally:
+        if client:
+            client.close()
 
 
 # ----------------------------
@@ -105,42 +137,8 @@ def is_similar(f1, f2,
 # ----------------------------
 # Group Builder
 # ----------------------------
-# def build_groups(masks):
-
-#     features = [extract_mask_features(m) for m in masks]
-
-#     groups = {}
-#     assigned = {}
-
-#     group_id_counter = 1
-
-#     for i, feat in enumerate(features):
-
-#         if i in assigned:
-#             continue
-
-#         group_id = f"group_{group_id_counter}"
-#         group_id_counter += 1
-
-#         groups[group_id] = {
-#             "id": group_id,
-#             "name": random_name(),
-#             "color": random_color(),
-#             "mask_indices": [i]
-#         }
 
 
-#         assigned[i] = group_id
-
-#         for j in range(i + 1, len(features)):
-#             if j in assigned:
-#                 continue
-
-#             if is_similar(feat, features[j]):
-#                 groups[group_id]["mask_indices"].append(j)
-#                 assigned[j] = group_id
-
-#     return groups
 def build_similarity_graph(masks):
     n = len(masks)
     features = [extract_mask_features(m) for m in masks]
@@ -184,21 +182,35 @@ def get_connected_components(adjacency):
     return components
 
 
-def build_groups(masks):
+def build_groups(masks, room_id=None, project_id=None):
     adjacency = build_similarity_graph(masks)
     components = get_connected_components(adjacency)
 
     groups = {}
 
     for i, comp in enumerate(components, start=1):
-        group_id = f"group_{i}"
-
-        groups[group_id] = {
-            "id": group_id,
+        group_payload = {
             "name": random_name(),
             "code": "",
             "color": random_color(),
+            "type": "FF&E",
             "mask_indices": comp
+        }
+
+        mongo_group_id = _persist_group_in_mongo(
+            group_payload,
+            room_id=room_id,
+            project_id=project_id,
+        )
+        group_id = mongo_group_id or f"group_{i}"
+
+        groups[group_id] = {
+            "id": group_id,
+            "name": group_payload["name"],
+            "code": group_payload["code"],
+            "color": group_payload["color"],
+            "type": group_payload["type"],
+            "mask_indices": group_payload["mask_indices"],
         }
 
     return groups

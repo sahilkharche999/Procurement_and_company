@@ -4,8 +4,7 @@ import pickle
 import cv2
 import numpy as np
 from segment_anything import sam_model_registry, SamAutomaticMaskGenerator
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config import BASE_DIR
 
 
 class MaskGenerator:

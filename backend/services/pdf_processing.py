@@ -7,10 +7,8 @@ import fitz
 from bson import ObjectId
 from pymongo import MongoClient
 
-from config import MONGO_URI, MONGO_DB_NAME
+from config import MONGO_URI, MONGO_DB_NAME, BASE_DIR, LOCAL_FILE_DB
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LOCAL_FILE_DB = os.path.join(BASE_DIR, "local_file_db")
 os.makedirs(LOCAL_FILE_DB, exist_ok=True)
 
 _yolo_model = None

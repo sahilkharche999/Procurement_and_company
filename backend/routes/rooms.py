@@ -3,12 +3,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from db.mongo import get_rooms_collection
-
-
-class RoomCreate(BaseModel):
-    name: str
-    notes: str = ""
-    created_by: str = "user"
+from config import LOCAL_FILE_DB
+from schemas.room import RoomCreate
 
 
 router = APIRouter(prefix="/rooms", tags=["Rooms"])
@@ -21,6 +17,10 @@ async def get_rooms_by_project(project_id: str):
     docs = await cursor.to_list(1000)
     for d in docs:
         d["_id"] = str(d["_id"])
+        d["name"] = d.get("name") or d.get("room_name", "")
+        d["notes"] = d.get("notes", "")
+        d["created_by"] = d.get("created_by", "user")
+        d["is_included_in_budget"] = d.get("is_included_in_budget", False)
         if "diagram" in d:
             d["diagram"] = str(d.get("diagram", ""))
         if "project" in d:
@@ -35,7 +35,8 @@ async def create_room(project_id: str, body: RoomCreate):
         "project": project_id,
         "name": body.name,
         "notes": body.notes,
-        "created_by": body.created_by
+        "created_by": body.created_by,
+        "is_included_in_budget": body.is_included_in_budget,
     }
     res = await rooms_coll.insert_one(new_room)
     new_room["_id"] = str(res.inserted_id)
@@ -57,6 +58,10 @@ async def get_room(room_id: str):
         raise HTTPException(status_code=404, detail="Room not found.")
 
     room_doc["_id"] = str(room_doc["_id"])
+    room_doc["name"] = room_doc.get("name") or room_doc.get("room_name", "")
+    room_doc["notes"] = room_doc.get("notes", "")
+    room_doc["created_by"] = room_doc.get("created_by", "user")
+    room_doc["is_included_in_budget"] = room_doc.get("is_included_in_budget", False)
     room_doc["diagram"] = str(room_doc.get("diagram", ""))
     room_doc["project"] = str(room_doc.get("project", ""))
     return room_doc
@@ -67,13 +72,16 @@ class MasksUpdate(BaseModel):
     groups: dict
 
 
+class IncludeInBudgetUpdate(BaseModel):
+    is_included_in_budget: bool
+
+
 @router.put("/{room_id}/masks")
 async def update_room_masks(room_id: str, body: MasksUpdate):
     """
     Overwrites the masks_polygons.json file for a given room.
     """
     import os, json
-    from services.project_service import LOCAL_FILE_DB
 
     room_doc = await get_room(room_id)
     project_id = room_doc.get("project")
@@ -121,3 +129,37 @@ async def update_room_masks(room_id: str, body: MasksUpdate):
         return {"ok": True, "message": "Masks and groups successfully persisted."}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to write file: {e}")
+
+
+@router.patch("/{room_id}/include-in-budget")
+async def update_room_include_in_budget(room_id: str, body: IncludeInBudgetUpdate):
+    rooms_coll = get_rooms_collection()
+
+    try:
+        obj_id = ObjectId(room_id) if len(room_id) == 24 else room_id
+    except Exception:
+        obj_id = room_id
+
+    result = await rooms_coll.update_one(
+        {"_id": obj_id},
+        {"$set": {"is_included_in_budget": body.is_included_in_budget}},
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Room not found.")
+
+    updated = await rooms_coll.find_one({"_id": obj_id})
+    if not updated:
+        raise HTTPException(status_code=404, detail="Room not found.")
+
+    updated["_id"] = str(updated["_id"])
+    if "diagram" in updated:
+        updated["diagram"] = str(updated.get("diagram", ""))
+    if "project" in updated:
+        updated["project"] = str(updated.get("project", ""))
+    updated["name"] = updated.get("name") or updated.get("room_name", "")
+    updated["notes"] = updated.get("notes", "")
+    updated["created_by"] = updated.get("created_by", "user")
+    updated["is_included_in_budget"] = updated.get("is_included_in_budget", False)
+
+    return updated

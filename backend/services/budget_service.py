@@ -10,6 +10,7 @@ from typing import Optional
 
 from bson import ObjectId
 
+from config import LOCAL_FILE_DB
 from db.mongo import get_db
 
 
@@ -34,7 +35,21 @@ def _serialize(doc: dict) -> dict:
     """Convert ObjectId → str for JSON serialisation."""
     doc = dict(doc)
     doc["_id"] = str(doc["_id"])
+    if isinstance(doc.get("room"), ObjectId):
+        doc["room"] = str(doc["room"])
     return doc
+
+
+def _resolve_room_name(room_value: str, room_map: dict[str, dict]) -> str:
+    if not room_value:
+        return "Unassigned Room"
+    room_key = str(room_value)
+    room_doc = room_map.get(room_key)
+    if room_doc:
+        return room_doc.get("name") or room_doc.get("room_name") or room_key
+    if ObjectId.is_valid(room_key):
+        return "Unknown Room"
+    return room_key
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -90,7 +105,7 @@ async def list_items(
     docs = await cursor.to_list(page_size)
 
     # Preload rooms for population
-    room_ids = list({ObjectId(d["room"]) for d in docs if d.get("room") and ObjectId.is_valid(d["room"])})
+    room_ids = list({ObjectId(d["room"]) for d in docs if d.get("room") and ObjectId.is_valid(str(d["room"]))})
     if room_ids:
         rooms = await rooms_coll.find({"_id": {"$in": room_ids}}).to_list(None)
         room_map = {str(r["_id"]): r for r in rooms}
@@ -100,8 +115,7 @@ async def list_items(
         room_map = {}
 
     for d in docs:
-        if d.get("room") and d["room"] in room_map:
-            d["room_name"] = room_map[d["room"]].get("name", d["room"])
+        d["room_name"] = _resolve_room_name(d.get("room", ""), room_map)
 
     # Fetch subitems
     all_subitem_ids = []
@@ -115,8 +129,7 @@ async def list_items(
     if all_subitem_ids:
         sub_docs = await col.find({"_id": {"$in": all_subitem_ids}}).to_list(None)
         for s in sub_docs:
-            if s.get("room") and s["room"] in room_map:
-                s["room_name"] = room_map[s["room"]].get("name", s["room"])
+            s["room_name"] = _resolve_room_name(s.get("room", ""), room_map)
             subitems_map[str(s["_id"])] = _serialize(s)
 
     items = []
@@ -134,11 +147,14 @@ async def list_items(
     all_docs = await all_cursor.to_list(None)
 
     # Preload all rooms for totals
-    all_room_ids = list({ObjectId(d["room"]) for d in all_docs if d.get("room") and ObjectId.is_valid(d["room"])})
+    all_room_ids = list({ObjectId(d["room"]) for d in all_docs if d.get("room") and ObjectId.is_valid(str(d["room"]))})
     all_room_map = {}
     if all_room_ids:
         all_rooms = await rooms_coll.find({"_id": {"$in": all_room_ids}}).to_list(None)
-        all_room_map = {str(r["_id"]): r.get("name", str(r["_id"])) for r in all_rooms}
+        all_room_map = {
+            str(r["_id"]): (r.get("name") or r.get("room_name") or str(r["_id"]))
+            for r in all_rooms
+        }
 
     grand_total = sum(
         (d.get("extended") or 0) for d in all_docs if not d.get("hidden_from_total")
@@ -146,7 +162,7 @@ async def list_items(
 
     room_totals: dict[str, float] = {}
     for d in all_docs:
-        raw_room_id = d.get("room", "")
+        raw_room_id = str(d.get("room", "")) if d.get("room") else ""
         key = str(all_room_map.get(raw_room_id, raw_room_id)) if raw_room_id else "Unassigned Room"
         room_totals[key] = room_totals.get(key, 0.0) + (
             (d.get("extended") or 0) if not d.get("hidden_from_total") else 0.0
@@ -182,7 +198,7 @@ async def export_items(
 
     docs = await col.find(filt).sort(sort).to_list(None)
 
-    room_ids = list({ObjectId(d["room"]) for d in docs if d.get("room") and ObjectId.is_valid(d["room"])})
+    room_ids = list({ObjectId(d["room"]) for d in docs if d.get("room") and ObjectId.is_valid(str(d["room"]))})
     if room_ids:
         rooms = await rooms_coll.find({"_id": {"$in": room_ids}}).to_list(None)
         room_map = {str(r["_id"]): r for r in rooms}
@@ -192,9 +208,7 @@ async def export_items(
         room_map = {}
 
     for d in docs:
-        if d.get("room") and d["room"] in room_map:
-            # We preserve the raw room_id for updates! The frontend handles mapping!
-            d["room_name"] = room_map[d["room"]].get("name", d["room"])
+        d["room_name"] = _resolve_room_name(d.get("room", ""), room_map)
 
     # Resolve subitems properly
     all_subitem_ids = []
@@ -207,8 +221,7 @@ async def export_items(
     if all_subitem_ids:
         sub_docs = await col.find({"_id": {"$in": all_subitem_ids}}).to_list(None)
         for s in sub_docs:
-            if s.get("room") and s["room"] in room_map:
-                s["room_name"] = room_map[s["room"]].get("name", s["room"])
+            s["room_name"] = _resolve_room_name(s.get("room", ""), room_map)
             subitems_map[str(s["_id"])] = _serialize(s)
 
     items = []
@@ -224,9 +237,11 @@ async def export_items(
     grand_total = sum((d.get("extended") or 0) for d in docs if not d.get("hidden_from_total"))
     room_totals: dict[str, float] = {}
     for d in docs:
-        raw_room_id = d.get("room", "")
+        raw_room_id = str(d.get("room", "")) if d.get("room") else ""
         mapped_room = room_map.get(raw_room_id, {})
-        room_name = mapped_room.get("name", raw_room_id) if isinstance(mapped_room, dict) else raw_room_id
+        room_name = (
+            mapped_room.get("name") or mapped_room.get("room_name") or raw_room_id
+        ) if isinstance(mapped_room, dict) else raw_room_id
         key = str(room_name) if raw_room_id else "Unassigned Room"
         room_totals[key] = room_totals.get(key, 0.0) + (
             (d.get("extended") or 0) if not d.get("hidden_from_total") else 0.0
@@ -496,9 +511,6 @@ async def create_preliminary_budget(project_id: str) -> dict:
     import os, json
     from db.mongo import get_rooms_collection, get_diagrams_collection, get_pages_collection
 
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    local_file_db = os.path.join(BASE_DIR, "local_file_db")
-
     rooms_coll = get_rooms_collection()
     diagrams_coll = get_diagrams_collection()
     pages_coll = get_pages_collection()
@@ -541,12 +553,49 @@ async def create_preliminary_budget(project_id: str) -> dict:
         return {"created": 0, "updated": 0, "rooms_processed": 0,
                 "message": "No rooms found for this project."}
 
+    # 2. Split rooms by include-in-budget toggle
+    included_rooms = [r for r in rooms if bool(r.get("is_included_in_budget", False))]
+    excluded_room_ids = [str(r["_id"]) for r in rooms if not bool(r.get("is_included_in_budget", False))]
+
+    print(f"[BudgetGen] Included rooms: {len(included_rooms)} | Excluded rooms: {len(excluded_room_ids)}")
+
+    # Edge case sync:
+    # If a room was previously enabled and now disabled, remove all budget items for that room.
+    # Keep this broad (not just system-created) to fully sync with toggle intent.
+    deleted_count = 0
+    if excluded_room_ids:
+        room_match_values = set(excluded_room_ids)
+        for rid in excluded_room_ids:
+            if ObjectId.is_valid(rid):
+                room_match_values.add(ObjectId(rid))
+
+        delete_res = await col.delete_many({
+            "project": project_id,
+            "room": {"$in": list(room_match_values)},
+        })
+        deleted_count = delete_res.deleted_count
+        print(f"[BudgetGen] Deleted {deleted_count} budget item(s) for excluded rooms")
+
+    if not included_rooms:
+        summary = (
+            f"Budget generation complete. 0 items created, 0 items updated across 0 rooms. "
+            f"Deleted {deleted_count} items from excluded rooms."
+        )
+        print(f"[BudgetGen] Done: {summary}")
+        return {
+            "created": 0,
+            "updated": 0,
+            "deleted": deleted_count,
+            "rooms_processed": 0,
+            "message": summary,
+        }
+
     created_count = 0
     updated_count = 0
     rooms_processed = 0
 
-    # 2. Iterate over each room
-    for room in rooms:
+    # 3. Iterate over each included room
+    for room in included_rooms:
         room_id = str(room["_id"])
         masks_url: str = room.get("masks_polygons_url", "")
         print(f"[BudgetGen] Room {room_id}: masks_polygons_url={masks_url!r}")
@@ -560,7 +609,7 @@ async def create_preliminary_budget(project_id: str) -> dict:
         relative_path = masks_url.lstrip("/")
         if relative_path.startswith("local_file_db/"):
             relative_path = relative_path[len("local_file_db/"):]
-        json_path = os.path.join(local_file_db, relative_path)
+        json_path = os.path.join(LOCAL_FILE_DB, relative_path)
         print(f"[BudgetGen]  -> Resolved path: {json_path}")
         print(f"[BudgetGen]  -> File exists: {os.path.exists(json_path)}")
 
@@ -582,7 +631,8 @@ async def create_preliminary_budget(project_id: str) -> dict:
 
         # -- Resolve page_id and page_no for this room via the diagram chain --
         # Chain: room.diagram (ObjectId) -> diagram.page (ObjectId) -> page.page_no (int)
-        room_name = room.get("room_name", "")
+        room_name = room.get("name") or room.get("room_name", "")
+        room_id = str(room.get("_id") or "")
         page_id_str = ""
         page_no_val = None
 
@@ -638,14 +688,14 @@ async def create_preliminary_budget(project_id: str) -> dict:
                         "extended": new_extended,
                         "name": group_name,
                         "description": group_desc,
-                        "room": room_name,
+                        "room": room_id,
                         "page_id": page_id_str,
                         "page_no": page_no_val,
                         "updated_at": _now(),
                     }},
                 )
                 updated_count += 1
-                print(f"[BudgetGen]    -> SYNCED qty to {qty_str!r}, room={room_name!r}, page_no={page_no_val!r}")
+                print(f"[BudgetGen]    -> SYNCED qty to {qty_str!r}, room={room_name!r} ({room_id}), page_no={page_no_val!r}")
 
             else:
                 new_index = await _max_order(project_id) + 1
@@ -656,7 +706,7 @@ async def create_preliminary_budget(project_id: str) -> dict:
                     "name": group_name,
                     "description": group_desc,
                     "group_id": group_id_val,
-                    "room": room_name,  # human-readable room name
+                    "room": room_id,  # canonical room id
                     "page_id": page_id_str,  # MongoDB _id of the page
                     "page_no": page_no_val,  # page number (int)
                     "qty": qty_str,
@@ -673,14 +723,16 @@ async def create_preliminary_budget(project_id: str) -> dict:
                 result = await col.insert_one(new_doc)
                 created_count += 1
                 print(
-                    f"[BudgetGen]    -> CREATED _id={result.inserted_id}, room={room_name!r}, page_no={page_no_val!r}")
+                    f"[BudgetGen]    -> CREATED _id={result.inserted_id}, room={room_name!r} ({room_id}), page_no={page_no_val!r}")
 
     summary = (f"Budget generation complete. {created_count} items created, "
-               f"{updated_count} items updated across {rooms_processed} rooms.")
+               f"{updated_count} items updated across {rooms_processed} rooms. "
+               f"Deleted {deleted_count} items from excluded rooms.")
     print(f"[BudgetGen] Done: {summary}")
     return {
         "created": created_count,
         "updated": updated_count,
+        "deleted": deleted_count,
         "rooms_processed": rooms_processed,
         "message": summary,
     }

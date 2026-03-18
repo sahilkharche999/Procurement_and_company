@@ -52,7 +52,7 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
     onClose();
   };
 
-  const handleCreate = () => {
+  const handleCreate = async () => {
     if (!name.trim()) {
       setError("Group name is required.");
       return;
@@ -62,14 +62,17 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
       return;
     }
 
-    const id = `group_${Date.now()}`;
-    onGroupCreated({
-      id,
+    const created = await onGroupCreated({
       name: name.trim(),
       code: code.trim(),
       color: hexToRgb(color),
       type,
     });
+
+    if (!created) {
+      setError("Failed to create group. Please try again.");
+      return;
+    }
 
     reset();
     onClose();

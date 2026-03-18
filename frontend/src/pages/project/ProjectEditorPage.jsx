@@ -6,34 +6,17 @@ import { Button } from "../../components/ui/button";
 import {
   ArrowLeft,
   Loader2,
-  Trash2,
-  Plus,
-  Download,
-  CheckSquare,
-  Square,
-  ImageOff,
-  ChevronDown,
-  ChevronRight,
   Images,
   FolderOpen,
   Save,
   RefreshCw,
   Receipt,
   BarChart3,
-  FileJson,
-  CalendarDays,
-  TrendingUp,
-  Package,
-  Layers,
   Pencil,
   Check,
   X,
   Database,
   PenLine,
-  ZoomIn,
-  Upload,
-  ChevronLeft,
-  ExternalLink,
   Scissors,
   Wand2,
 } from "lucide-react";
@@ -43,8 +26,6 @@ import { RoomProcessorTab } from "./RoomProcessorTab";
 import { SourceTab } from "./SourceTab";
 import { SummaryTab } from "./SummaryTab";
 import { BudgetPage } from "../budget/BudgetPage";
-
-const BASE = "http://localhost:8000";
 
 /* ══════════════════════════════════════════════════════════════════════════
    EDITOR TAB  (empty canvas — coming soon)

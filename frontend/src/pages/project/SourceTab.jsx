@@ -18,8 +18,7 @@ import {
   Square,
   Download,
 } from "lucide-react";
-
-const BASE = "http://localhost:8000";
+import { buildServerUrl } from "../../config";
 
 /* ══════════════════════════════════════════════════════════════════════════
    LIGHTBOX — full-screen image viewer, opened on double-click
@@ -27,7 +26,7 @@ const BASE = "http://localhost:8000";
 function Lightbox({ images, startIndex, onClose }) {
   const [idx, setIdx] = useState(startIndex);
   const img = images[idx];
-  const url = `${BASE}${img.url}`;
+  const url = buildServerUrl(img.url);
   const hasPrev = idx > 0;
   const hasNext = idx < images.length - 1;
 
@@ -115,7 +114,7 @@ function Lightbox({ images, startIndex, onClose }) {
 ══════════════════════════════════════════════════════════════════════════ */
 function ThumbCard({ img, mode, checked, onToggle, onDoubleClick }) {
   const [err, setErr] = useState(false);
-  const url = `${BASE}${img.url}`;
+  const url = buildServerUrl(img.url);
 
   return (
     <div
@@ -313,7 +312,7 @@ function UploadZone({ projectId, onUploaded }) {
       fd.append("page_number", pageNum);
       fd.append("label", "UPLOADED");
       try {
-        const res = await fetch(`${BASE}/projects/${projectId}/upload-image`, {
+        const res = await fetch(buildServerUrl(`/projects/${projectId}/upload-image`), {
           method: "POST",
           body: fd,
         });

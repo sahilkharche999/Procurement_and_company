@@ -11,16 +11,13 @@ from datetime import datetime
 
 from bson import ObjectId
 
+from config import LOCAL_FILE_DB
 from db.mongo import (
     get_projects_collection,
     get_diagrams_collection,
     get_pages_collection,
     get_rooms_collection
 )
-
-# ── Folder root ─────────────────────────────────
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LOCAL_FILE_DB = os.path.join(BASE_DIR, "local_file_db")
 
 
 async def create_project_document(data: dict) -> dict:
@@ -97,7 +94,8 @@ async def get_project_by_id(project_id: str) -> dict | None:
             for r in rooms_list:
                 formatted_rooms.append({
                     "id": str(r["_id"]),
-                    "name": r.get("room_name", ""),
+                    "name": r.get("name") or r.get("room_name", ""),
+                    "is_included_in_budget": r.get("is_included_in_budget", False),
                     "filename": diag.get("filename", ""),  # Relational inherit
                     "url": r.get("room_image_url", ""),
                     "saved_path": r.get("saved_path", ""),  # Optional local path mapping

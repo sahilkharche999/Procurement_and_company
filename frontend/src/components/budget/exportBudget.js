@@ -33,7 +33,7 @@ export async function exportToExcel(projectId, section, groupByRoom, groupByPage
     let prevRoom = null
 
     for (const item of items) {
-        const room = item.room || "Unassigned Room"
+        const room = item.room_name || item.room || "Unassigned Room"
 
         if (groupByRoom && room !== prevRoom) {
             if (prevRoom && room_totals[prevRoom] != null) {
@@ -54,7 +54,7 @@ export async function exportToExcel(projectId, section, groupByRoom, groupByPage
         rows.push({
             "Spec No": item.spec_no,
             Description: item.description,
-            Room: item.room,
+            Room: room,
             Page: item.page_no,
             Qty: item.qty,
             "Unit Cost": fmtCurrency(item.unit_cost),
@@ -139,7 +139,7 @@ export async function exportToPdf(projectId, section, groupByRoom, groupByPage) 
     let prevRoom = null
 
     for (const item of items) {
-        const room = item.room || "Unassigned Room"
+        const room = item.room_name || item.room || "Unassigned Room"
 
         if (groupByRoom && room !== prevRoom) {
             if (prevRoom && room_totals[prevRoom] != null) {
@@ -155,7 +155,7 @@ export async function exportToPdf(projectId, section, groupByRoom, groupByPage) 
         }
 
         body.push([
-            item.spec_no || "", item.description || "", item.room || "",
+            item.spec_no || "", item.description || "", room,
             item.page_no != null ? String(item.page_no) : "", item.qty || "",
             fmtCurrency(item.unit_cost),
             { content: fmtCurrency(item.extended), styles: item.hidden_from_total ? { textColor: [160, 160, 160], fontStyle: "italic" } : {} },
