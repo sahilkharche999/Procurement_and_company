@@ -7,6 +7,9 @@ import {
   FolderOpen,
   Plus,
   Trash2,
+  Pencil,
+  Check,
+  X,
   Download,
   FileJson,
   CalendarDays,
@@ -30,9 +33,13 @@ function formatDate(iso) {
 
 export function ProjectsSection() {
   const navigate = useNavigate();
-  const { projects, loading, remove, downloadMetadata, load } = useProjects();
+  const { projects, loading, remove, rename, downloadMetadata, load } =
+    useProjects();
   const [deletingId, setDeletingId] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editingName, setEditingName] = useState("");
+  const [savingId, setSavingId] = useState(null);
 
   useEffect(() => {
     load();
@@ -54,6 +61,35 @@ export function ProjectsSection() {
 
   const handleOpen = (project) => {
     navigate(`/projects/${getId(project)}`);
+  };
+
+  const handleStartEdit = (e, project) => {
+    e.stopPropagation();
+    const pid = getId(project);
+    setEditingId(pid);
+    setEditingName(project.name || "");
+  };
+
+  const handleCancelEdit = (e) => {
+    e.stopPropagation();
+    setEditingId(null);
+    setEditingName("");
+  };
+
+  const handleSaveEdit = async (e, project) => {
+    e.stopPropagation();
+    const pid = getId(project);
+    const nextName = editingName.trim();
+    if (!pid || !nextName) return;
+
+    setSavingId(pid);
+    const result = await rename(pid, nextName);
+    setSavingId(null);
+
+    if (!result?.error) {
+      setEditingId(null);
+      setEditingName("");
+    }
   };
 
   return (
@@ -141,12 +177,27 @@ export function ProjectsSection() {
                       <FileJson className="h-5 w-5 text-violet-400" />
                     </div>
                     <div className="min-w-0 flex-1 pr-5">
-                      <p
-                        className="font-semibold text-sm leading-tight truncate"
-                        title={project.name}
-                      >
-                        {project.name}
-                      </p>
+                      {editingId === pid ? (
+                        <input
+                          value={editingName}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setEditingName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleSaveEdit(e, project);
+                            if (e.key === "Escape") handleCancelEdit(e);
+                          }}
+                          className="w-full h-7 px-2 border border-violet-300 bg-white text-sm font-semibold leading-tight focus:outline-none focus:ring-1 focus:ring-violet-400"
+                          placeholder="Project name"
+                          autoFocus
+                        />
+                      ) : (
+                        <p
+                          className="font-semibold text-sm leading-tight truncate"
+                          title={project.name}
+                        >
+                          {project.name}
+                        </p>
+                      )}
                       {project.description && (
                         <div className="flex items-center gap-1 mt-0.5">
                           <FileText className="h-3 w-3 text-muted-foreground shrink-0" />
@@ -192,6 +243,49 @@ export function ProjectsSection() {
                       )}
                       JSON
                     </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-7 w-7 p-0 text-gray-700 hover:bg-destructive/10 disabled:opacity-40"
+                      disabled={editingId === pid || deletingId === pid}
+                      onClick={(e) => handleStartEdit(e, project)}
+                      title="Edit project name"
+                    > 
+                    <div className="h-7 w-7 shrink-0 rounded-sm bg-gradient-to-br from-violet-500/20 to-indigo-500/20 border border-violet-500/20 flex items-center justify-center">
+                  
+                      <Pencil className="h-3.5 w-3.5" />
+                    </div>
+                    </Button>
+
+                    {editingId === pid ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-emerald-600 hover:bg-emerald-500/10 disabled:opacity-40"
+                          disabled={savingId === pid || !editingName.trim()}
+                          onClick={(e) => handleSaveEdit(e, project)}
+                          title="Save project name"
+                        >
+                          {savingId === pid ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Check className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:bg-muted disabled:opacity-40"
+                          disabled={savingId === pid}
+                          onClick={(e) => handleCancelEdit(e)}
+                          title="Cancel edit"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    ) : null}
+
                     <Button
                       size="sm"
                       variant="ghost"

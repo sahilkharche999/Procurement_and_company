@@ -429,8 +429,10 @@ export function SourceTab({ project }) {
   const {
     availablePages,
     availableLoading,
+    pagesUpdating,
     loadOne,
     loadAvailablePages,
+    updatePages,
     clearPages,
     downloadMetadata,
   } = useProjects();
@@ -496,6 +498,22 @@ export function SourceTab({ project }) {
     await downloadMetadata(project);
     setDownloadingId(null);
   };
+
+  const handleApplySelection = async () => {
+    if (!hasMarked) return;
+
+    if (subTab === "add") {
+      await updatePages({ id, add_filenames: markedList, remove_filenames: [] });
+    } else {
+      await updatePages({ id, add_filenames: [], remove_filenames: markedList });
+    }
+
+    // Refresh both project payload (saved pages) and available pages list.
+    await loadOne(id);
+    await loadAvailablePages(id);
+    setMarked({});
+  };
+
   const selectAll = () => {
     const next = {};
     activeImages.forEach((img) => {
@@ -582,6 +600,24 @@ export function SourceTab({ project }) {
               <span className="text-xs text-muted-foreground px-1">
                 {markedList.length} selected
               </span>
+              <Button
+                size="sm"
+                className={`h-8 text-xs gap-1.5 ml-1 ${
+                  subTab === "saved"
+                    ? "bg-red-600 hover:bg-red-700 text-white"
+                    : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                }`}
+                disabled={!hasMarked || pagesUpdating}
+                onClick={handleApplySelection}
+              >
+                {pagesUpdating ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : subTab === "saved" ? (
+                  "Remove Selected"
+                ) : (
+                  "Add Selected"
+                )}
+              </Button>
             </>
           )}
           <div className="w-px h-5 bg-border/60 mx-1" />

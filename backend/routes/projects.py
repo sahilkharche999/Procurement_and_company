@@ -15,7 +15,7 @@ import numpy as np
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, File, Form, UploadFile, BackgroundTasks
 
-from db.mongo import get_projects_collection, get_diagrams_collection, get_rooms_collection
+from db.mongo import get_projects_collection, get_diagrams_collection, get_rooms_collection, get_pages_collection
 from models.project import ProjectCreate, ProjectOut, ProjectUpdate
 from services import project_service
 from services.project_service import LOCAL_FILE_DB
@@ -191,9 +191,27 @@ async def update_project_saved_pages(project_id: str, body: dict):
     add_list = body.get("add_filenames", [])
     remove_list = body.get("remove_filenames", [])
 
+    # Collections needed to keep is_selected flags in sync with SourceTab actions.
+    diagrams_coll = get_diagrams_collection()
+    pages_coll = get_pages_collection()
+
+    # Some legacy records use string project id, newer records use ObjectId.
+    project_values = [project_id]
+    if ObjectId.is_valid(project_id):
+        project_values.append(ObjectId(project_id))
+
     # Handle removals
     if remove_list:
         images = [img for img in images if img["filename"] not in remove_list]
+
+        # Mark corresponding diagrams as unselected in MongoDB.
+        await diagrams_coll.update_many(
+            {
+                "project": {"$in": project_values},
+                "filename": {"$in": remove_list},
+            },
+            {"$set": {"is_selected": False}},
+        )
 
     # Handle additions
     if add_list:
@@ -217,6 +235,40 @@ async def update_project_saved_pages(project_id: str, body: dict):
                         "sub_index": m_img.get("sub_index", 0),
                         "url": f"/local_file_db/project_{project_id}/pdf_processing/sectioned/{fname}"
                     })
+
+        # Mark corresponding diagrams as selected in MongoDB.
+        await diagrams_coll.update_many(
+            {
+                "project": {"$in": project_values},
+                "filename": {"$in": add_list},
+            },
+            {"$set": {"is_selected": True}},
+        )
+
+    # Recompute page-level is_selected based on whether the page has any selected diagrams.
+    changed_filenames = list(set(add_list + remove_list))
+    if changed_filenames:
+        affected_page_ids = await diagrams_coll.distinct(
+            "page",
+            {
+                "project": {"$in": project_values},
+                "filename": {"$in": changed_filenames},
+            },
+        )
+
+        for page_id in affected_page_ids:
+            has_selected_diagram = await diagrams_coll.find_one(
+                {
+                    "project": {"$in": project_values},
+                    "page": page_id,
+                    "is_selected": True,
+                },
+                {"_id": 1},
+            )
+            await pages_coll.update_one(
+                {"_id": page_id},
+                {"$set": {"is_selected": bool(has_selected_diagram)}},
+            )
 
     # Update MongoDB
     metadata["images"] = images

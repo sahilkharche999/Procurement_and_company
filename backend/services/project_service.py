@@ -13,6 +13,7 @@ from bson import ObjectId
 
 from config import LOCAL_FILE_DB
 from db.mongo import (
+    get_db,
     get_projects_collection,
     get_diagrams_collection,
     get_pages_collection,
@@ -145,11 +146,88 @@ async def update_project(project_id: str, updates: dict) -> dict | None:
 
 
 async def delete_project(project_id: str) -> bool:
-    """Delete a project document. Returns True if deleted."""
-    col = get_projects_collection()
+    """
+    Delete a project and all related resources.
+
+    Steps:
+      1) Delete the project root folder from local_file_db/project_{project_id}
+      2) Delete all related MongoDB documents in collections that reference this project
+         via either `project` or `project_id` fields (string/ObjectId tolerant)
+      3) Delete the project document itself
+    """
+    projects_coll = get_projects_collection()
+    db = get_db()
+
+    print(f"[delete_project] Starting delete for project_id={project_id}")
+
+    # Validate project id format first.
     if not ObjectId.is_valid(project_id):
+        print(f"[delete_project] Invalid project id format: {project_id}")
         return False
-    result = await col.delete_one({"_id": ObjectId(project_id)})
+
+    obj_project_id = ObjectId(project_id)
+
+    # Ensure project exists; if not, behave exactly as before and return False.
+    existing = await projects_coll.find_one({"_id": obj_project_id}, {"_id": 1})
+    if not existing:
+        print(f"[delete_project] Project not found: {project_id}")
+        return False
+
+    # Build match clauses once so all queries stay consistent.
+    # We support both string and ObjectId values because existing data uses both.
+    project_value_variants = [project_id, obj_project_id]
+
+    def _build_project_filter(*field_names: str) -> dict:
+        return {
+            "$or": [
+                {field: {"$in": project_value_variants}}
+                for field in field_names
+            ]
+        }
+
+    # 1) Remove project directory from disk (safe if already missing).
+    project_folder = os.path.join(LOCAL_FILE_DB, f"project_{project_id}")
+    if os.path.isdir(project_folder):
+        print(f"[delete_project] Removing folder: {project_folder}")
+        shutil.rmtree(project_folder, ignore_errors=True)
+        print(f"[delete_project] Folder removed: {project_folder}")
+    else:
+        print(f"[delete_project] Folder not found (skipped): {project_folder}")
+
+    # 2) Remove related documents across all known project-bound collections.
+    #    Note: delete_many with no matches is a no-op and does not raise.
+    cleanup_plan = [
+        ("diagrams", _build_project_filter("project", "project_id")),
+        ("groups", _build_project_filter("project", "project_id")),
+        ("jobs", _build_project_filter("project", "project_id")),
+        ("pages", _build_project_filter("project", "project_id")),
+        ("pdf_documents", _build_project_filter("project", "project_id")),
+        ("processing_jobs", _build_project_filter("project", "project_id")),
+        ("project_sources", _build_project_filter("project", "project_id")),
+        ("rooms", _build_project_filter("project", "project_id")),
+        # Extra safety: budget items are also project-bound in this system.
+        ("budget_items", _build_project_filter("project", "project_id")),
+    ]
+
+    total_related_deleted = 0
+    for collection_name, filt in cleanup_plan:
+        try:
+            result = await db[collection_name].delete_many(filt)
+            total_related_deleted += result.deleted_count
+            print(
+                f"[delete_project] Cleanup '{collection_name}': deleted {result.deleted_count} document(s)"
+            )
+        except Exception as e:
+            # Log and continue so one collection failure does not block the whole operation.
+            print(f"[delete_project] cleanup failed for '{collection_name}': {e}")
+
+    # 3) Finally remove the project document itself.
+    result = await projects_coll.delete_one({"_id": obj_project_id})
+    print(
+        f"[delete_project] Project document delete count: {result.deleted_count}; "
+        f"related documents deleted: {total_related_deleted}"
+    )
+    print(f"[delete_project] Finished delete for project_id={project_id}")
     return result.deleted_count == 1
 
 
