@@ -13,6 +13,8 @@ from pathlib import Path
 import google.generativeai as genai
 from PIL import Image
 
+from config import GEMINI_API_KEY
+
 # ─── Configuration ────────────────────────────────────────────────────────────
 
 DEFAULT_MODEL = "gemini-3.1-pro-preview"
@@ -135,7 +137,7 @@ Remember: return ONLY the JSON array — no markdown fences, no preamble.
 # ─── Core function ─────────────────────────────────────────────────────────────
 
 def _resolve_api_key(api_key: str | None = None) -> str:
-  resolved = api_key or os.getenv("GEMINI_API_KEY")
+  resolved = api_key or GEMINI_API_KEY
   if not resolved:
     raise ValueError("GEMINI API key is missing. Set GEMINI_API_KEY or pass api_key.")
   return resolved
