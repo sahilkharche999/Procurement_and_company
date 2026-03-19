@@ -74,26 +74,27 @@ export default function EditorLayout() {
               };
             }
 
-            const savedGroups = localStorage.getItem(`editor_groups_${roomId}`);
-            const savedMasks = localStorage.getItem(`editor_masks_${roomId}`);
+            // Always prefer latest server payload to avoid stale local cache
+            // causing visual misalignment with the current room image.
+            setGroups(initializedGroups);
+            setMasks(data.masks || []);
+            setHistory([
+              {
+                masks: data.masks || [],
+                groups: initializedGroups,
+              },
+            ]);
+            setHistoryIndex(0);
 
-            if (!savedGroups) {
-              setGroups(initializedGroups);
-            }
-            if (!savedMasks) {
-              setMasks(data.masks || []);
-            }
-
-            // Only re-init history if we loaded anything fresh
-            if (!savedGroups || !savedMasks) {
-              setHistory([
-                {
-                  masks: !savedMasks ? data.masks || [] : masks,
-                  groups: !savedGroups ? initializedGroups : groups,
-                },
-              ]);
-              setHistoryIndex(0);
-            }
+            // Sync cache to latest server data as well.
+            localStorage.setItem(
+              `editor_groups_${roomId}`,
+              JSON.stringify(initializedGroups),
+            );
+            localStorage.setItem(
+              `editor_masks_${roomId}`,
+              JSON.stringify(data.masks || []),
+            );
           }
         }
       } catch (err) {
