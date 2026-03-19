@@ -626,6 +626,12 @@ async def create_preliminary_budget(project_id: str) -> dict:
 
         groups: dict = data.get("groups", {})
         masks: list = data.get("masks", [])
+        if not isinstance(groups, dict):
+            print(f"[BudgetGen]  -> Skipping: invalid groups payload type={type(groups)}")
+            continue
+        if not isinstance(masks, list):
+            print(f"[BudgetGen]  -> Skipping: invalid masks payload type={type(masks)}")
+            continue
         print(f"[BudgetGen]  -> Loaded JSON: {len(groups)} groups, {len(masks)} masks")
         rooms_processed += 1
 
@@ -652,15 +658,20 @@ async def create_preliminary_budget(project_id: str) -> dict:
 
         # 3. For each group, count masks and upsert budget item
         for group_key, group in groups.items():
-            code: str = group.get("code", "").strip()
+            if not isinstance(group, dict):
+                print(f"[BudgetGen]    -> Skipping group {group_key}: invalid type={type(group)}")
+                continue
+
+            code_raw = group.get("code")
+            code: str = str(code_raw or "").strip()
             print(f"[BudgetGen]    Group {group_key}: code={code!r}")
             if not code:
                 print(f"[BudgetGen]    -> Skipping: empty code")
                 continue
 
-            group_id_val: str = group.get("id", group_key)
-            group_name: str = group.get("name", "")
-            group_desc: str = group.get("description", "")
+            group_id_val: str = str(group.get("id", group_key))
+            group_name: str = str(group.get("name") or "")
+            group_desc: str = str(group.get("description") or "")
 
             # Count masks belonging to this group
             mask_count = sum(1 for m in masks if m.get("group_id") == group_id_val)

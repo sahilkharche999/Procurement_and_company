@@ -1,5 +1,4 @@
 import os
-import pickle
 
 import cv2
 from bson import ObjectId
@@ -7,11 +6,11 @@ from pymongo import MongoClient
 
 from config import MONGO_URI, MONGO_DB_NAME
 from services.project_service import LOCAL_FILE_DB
-from services.room_analysis.grouping_engine import build_groups, save_groups_to_json
 from services.room_analysis.image_preprocessor import preprocess_floorplan_for_sam
-from services.room_analysis.mask_and_group_combiner import combine_masks_and_groups
-from services.room_analysis.mask_drawer import draw_masks_on_image
-from services.room_analysis.mask_generator import MaskGenerator
+from services.vlm_room_analysis.drawgrid import generate_grid_overlay
+from services.vlm_room_analysis.analyse import analyze_floor_plan_to_file
+from services.vlm_room_analysis.cell_to_pixel import convert_objects_cells_to_pixels
+from services.vlm_room_analysis.masks_from_pixels_service import generate_masks_polygons_file
 
 
 def update_room_analysis_status(room_id: str, status: str, progress: int, message: str = "", extra_fields: dict = None):
@@ -57,10 +56,11 @@ def run_room_analysis_pipeline(room_id: str, project_id: str, room_image_url: st
         room_output_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "rooms", str(room_id), "analysis")
         os.makedirs(room_output_dir, exist_ok=True)
 
-        # Define output artifact paths
+        # Define output artifact paths (V2 VLM pipeline)
         preprocessed_img_path = os.path.join(room_output_dir, "preprocessed.png")
-        masks_pkl_path = os.path.join(room_output_dir, "masks.pkl")
-        groups_json_path = os.path.join(room_output_dir, "groups.json")
+        grid_overlay_img_path = os.path.join(room_output_dir, "vlm_grid_overlay.png")
+        objects_cells_json_path = os.path.join(room_output_dir, "vlm_objects_cells.json")
+        objects_pixels_json_path = os.path.join(room_output_dir, "vlm_objects_pixels.json")
         masks_polygons_json_path = os.path.join(room_output_dir, "masks_polygons.json")
 
         base_url = f"/local_file_db/project_{project_id}/rooms/{room_id}/analysis"
@@ -88,56 +88,47 @@ def run_room_analysis_pipeline(room_id: str, project_id: str, room_image_url: st
             raise ValueError(f"preprocess_floorplan_for_sam completed but file is missing at {preprocessed_img_path}")
         
         
-        # 3. Generate Masks (SAM)
-        update_room_analysis_status(room_id, "generating_masks", 30,
-                                    "Generating segmentation masks using SAM Model (This may take a while)...")
-        # Initialize generator (assuming model downloaded in root or accessible path)
-        try:
-            generator = MaskGenerator()
-            generator.load_model()
-        except Exception as e:
-            raise RuntimeError(f"Failed to load SAM model. Ensure sam_vit_h_4b8939.pth exists. Error: {e}")
-
-        generator.process_image(
+        # 3. Draw adaptive grid on preprocessed image
+        update_room_analysis_status(room_id, "drawing_grid", 25, "Drawing adaptive coordinate grid...")
+        grid_meta = generate_grid_overlay(
             image_path=preprocessed_img_path,
-            output_pkl_path=masks_pkl_path,
-            do_merge=True
+            output_path=grid_overlay_img_path,
+            rows=None,
+            cols=None,
+            color=(135, 128, 128),
+            thickness=1,
+            show_labels=True,
+            font_scale=0.8,
         )
 
-        # 3.5. [DEBUG] Draw Masks overlaid on preprocessed image
-        debug_output_path = os.path.join(room_output_dir, "sam_output.png")
-        update_room_analysis_status(room_id, "generating_masks", 65, "Drawing mask debug overlay...")
-        draw_masks_on_image(
-            image_path=preprocessed_img_path,
-            pkl_path=masks_pkl_path,
-            output_path=debug_output_path
+        # 4. VLM analysis → objects with cell coordinates
+        update_room_analysis_status(room_id, "vlm_detect", 45, "Analyzing room with VLM...")
+        analyze_floor_plan_to_file(
+            image_path=grid_overlay_img_path,
+            output_json_path=objects_cells_json_path,
         )
 
-        # 4. Group Masks
-        update_room_analysis_status(room_id, "grouping", 70, "Clustering similar masks into groups...")
-        with open(masks_pkl_path, "rb") as f:
-            masks_data = pickle.load(f)
+        # 5. Convert cell coordinates to pixel coordinates
+        update_room_analysis_status(room_id, "cell_to_pixel", 65, "Converting detected cells to pixel coordinates...")
+        convert_objects_cells_to_pixels(
+            image_path=preprocessed_img_path,
+            input_json_path=objects_cells_json_path,
+            output_json_path=objects_pixels_json_path,
+        )
 
-        # Build relational groups dictionary
-        groups_dict = build_groups(
-            masks_data,
+        # 6. Generate masks_polygons.json from pixel coordinates
+        update_room_analysis_status(room_id, "generating_masks", 85, "Generating masks polygons from VLM detections...")
+        generate_masks_polygons_file(
+            input_pixels_json_path=objects_pixels_json_path,
+            output_masks_polygons_path=masks_polygons_json_path,
+            image_path=preprocessed_img_path,
             room_id=room_id,
             project_id=project_id,
-        )
-        save_groups_to_json(groups_dict, groups_json_path)
-
-        # 5. Combine Masks and Groups into Polygons
-        update_room_analysis_status(room_id, "combining", 85, "Converting masks to lightweight polygons...")
-        combine_masks_and_groups(
-            pkl_path=masks_pkl_path,
-            groups_path=groups_json_path,
-            image_path=preprocessed_img_path,
-            output_json_path=masks_polygons_json_path,
-            epsilon_ratio=0.0001,
-            min_area=50
+            default_group_type="FF&E",
+            box_size=20,
         )
 
-        # 6. Finalize Payload and Update MongoDB
+        # 7. Finalize Payload and Update MongoDB
         update_room_analysis_status(
             room_id=room_id,
             status="completed",
@@ -145,8 +136,12 @@ def run_room_analysis_pipeline(room_id: str, project_id: str, room_image_url: st
             message="Room analysis successfully completed.",
             extra_fields={
                 "masks_polygons_url": f"{base_url}/masks_polygons.json",
-                "masks_groups_url": f"{base_url}/groups.json",
-                "masks_pkl_url": f"{base_url}/masks.pkl"
+                "vlm_grid_overlay_url": f"{base_url}/vlm_grid_overlay.png",
+                "vlm_objects_cells_url": f"{base_url}/vlm_objects_cells.json",
+                "vlm_objects_pixels_url": f"{base_url}/vlm_objects_pixels.json",
+                "analysis_pipeline": "vlm_v2",
+                "grid_rows": grid_meta.get("rows"),
+                "grid_cols": grid_meta.get("cols"),
             }
         )
         print(f"[Orchestrator] Successfully completed analysis for room {room_id}")

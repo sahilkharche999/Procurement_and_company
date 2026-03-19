@@ -19,7 +19,7 @@ from db.mongo import get_projects_collection, get_diagrams_collection, get_rooms
 from models.project import ProjectCreate, ProjectOut, ProjectUpdate
 from services import project_service
 from services.project_service import LOCAL_FILE_DB
-from services.room_analysis_orchestrator import run_room_analysis_pipeline
+from services.v2_room_analysis_orchestrator import run_room_analysis_pipeline
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 

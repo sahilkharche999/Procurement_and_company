@@ -17,6 +17,7 @@ class BudgetItemCreate(BaseModel):
     description: str = ""
     name: str = ""  # Mapped from group name
     room: str = ""
+    room_id: str = ""
     project: str = ""
     page_no: Optional[int] = None
     page_id: str = ""

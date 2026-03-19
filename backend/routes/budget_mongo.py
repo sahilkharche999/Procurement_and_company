@@ -56,6 +56,9 @@ async def export_budget(
 @router.post("/{project_id}/item", status_code=201)
 async def create_budget_item(project_id: str, body: BudgetItemCreate):
     data = body.model_dump()
+    # Backward-compatible alias support for clients sending room_id
+    if not data.get("room") and data.get("room_id"):
+        data["room"] = str(data.get("room_id"))
     return await svc.create_item(project_id, data)
 
 
