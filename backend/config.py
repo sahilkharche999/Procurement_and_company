@@ -9,7 +9,7 @@ load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 MONGO_URI = os.getenv("MONGO_URI", "")
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "procurement_db")
 SERVER_URL = os.getenv("SERVER_URL", "http://localhost:8000/")
-
+GEMINI_API_KEY=os.getenv("GEMINI_API_KEY")
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOCAL_FILE_DB = os.path.join(BASE_DIR, "local_file_db")
