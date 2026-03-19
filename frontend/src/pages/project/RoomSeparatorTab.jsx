@@ -20,6 +20,16 @@ const toSvgPoints = (polygon, width, height) => {
   return polygon.map((p) => `${p.x * width},${p.y * height}`).join(" ");
 };
 
+const createTempRoomId = () => {
+  const uuidFn = globalThis?.crypto?.randomUUID;
+  if (typeof uuidFn === "function") {
+    return uuidFn.call(globalThis.crypto);
+  }
+
+  // Fallback for older browsers / non-secure HTTP contexts
+  return `room_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+};
+
 function DrawingCanvas({ image, drawnRooms, setDrawnRooms }) {
   const containerRef = useRef(null);
   const [points, setPoints] = useState([]);
@@ -110,7 +120,7 @@ function DrawingCanvas({ image, drawnRooms, setDrawnRooms }) {
     const name = roomName.trim() || `Room ${drawnRooms.length + 1}`;
     setDrawnRooms((prev) => [
       ...prev,
-      { id: crypto.randomUUID(), name, polygon: namingPolygon },
+      { id: createTempRoomId(), name, polygon: namingPolygon },
     ]);
     setNamingPolygon(null);
     setRoomName("");
