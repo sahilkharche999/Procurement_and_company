@@ -255,9 +255,43 @@ export default function EditorLayout() {
     [roomId],
   );
 
+  const moveSelectedMasksBy = useCallback(
+    (dx, dy) => {
+      if (selectedMaskIds.length === 0) return;
+
+      const newMasks = masks.map((mask) => {
+        if (!selectedMaskIds.includes(mask.id)) return mask;
+
+        const newPolygons = mask.polygons.map((poly) => {
+          const flatPoly = poly.flat();
+          const res = [];
+          for (let i = 0; i < flatPoly.length; i += 2) {
+            res.push(flatPoly[i] + dx, flatPoly[i + 1] + dy);
+          }
+          return res;
+        });
+
+        return { ...mask, polygons: newPolygons };
+      });
+
+      setMasks(newMasks);
+      pushToHistory(newMasks, groups);
+    },
+    [selectedMaskIds, masks, groups],
+  );
+
   // ─── Keyboard shortcuts ───────────────────────────────────────────────────
   useEffect(() => {
     const handleKeyDown = (e) => {
+      const target = e.target;
+      const isTypingElement =
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable);
+      if (isTypingElement) return;
+
       const isMac = navigator.platform.toUpperCase().includes("MAC");
       const ctrlKey = isMac ? e.metaKey : e.ctrlKey;
 
@@ -337,6 +371,20 @@ export default function EditorLayout() {
         e.preventDefault();
         deleteSelectedMasks();
       }
+
+      // Arrow key nudge: normal = 1px, Shift+Arrow = 10px
+      if (
+        selectedMaskIds.length > 0 &&
+        ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)
+      ) {
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+
+        if (e.key === "ArrowUp") moveSelectedMasksBy(0, -step);
+        if (e.key === "ArrowDown") moveSelectedMasksBy(0, step);
+        if (e.key === "ArrowLeft") moveSelectedMasksBy(-step, 0);
+        if (e.key === "ArrowRight") moveSelectedMasksBy(step, 0);
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
@@ -348,6 +396,7 @@ export default function EditorLayout() {
     masks,
     clipboardMasks,
     handlePersist,
+    moveSelectedMasksBy,
   ]);
 
   // ─── Selection helpers ────────────────────────────────────────────────────
@@ -744,7 +793,7 @@ export default function EditorLayout() {
 
       {/* ── Save Notification ────────────────────────────────────────────── */}
       {saveStatus && (
-        <div className="absolute bottom-6 right-6 z-[100] bg-emerald-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300">
+        <div className="absolute bottom-6 right-6 z-100 bg-emerald-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300">
           <svg
             xmlns="http://www.w3.org/2000/svg"
             className="h-4 w-4"

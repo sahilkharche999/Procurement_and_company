@@ -26,41 +26,7 @@ import { RoomProcessorTab } from "./RoomProcessorTab";
 import { SourceTab } from "./SourceTab";
 import { SummaryTab } from "./SummaryTab";
 import { BudgetPage } from "../budget/BudgetPage";
-
-/* ══════════════════════════════════════════════════════════════════════════
-   EDITOR TAB  (empty canvas — coming soon)
-══════════════════════════════════════════════════════════════════════════ */
-function EditorTab() {
-  return (
-    <div className="flex-1 flex flex-col items-center justify-center gap-5 text-center px-8">
-      <div className="relative">
-        <div className="h-20 w-20 rounded-3xl bg-gradient-to-br from-violet-500/15 to-indigo-500/15 border border-violet-500/20 flex items-center justify-center shadow-xl shadow-violet-500/10">
-          <PenLine className="h-9 w-9 text-violet-400/70" />
-        </div>
-        <div className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-amber-400 border-2 border-background flex items-center justify-center">
-          <span className="text-[9px] font-bold text-amber-900">!</span>
-        </div>
-      </div>
-      <div>
-        <h2 className="text-lg font-bold mb-1.5">Visual Editor</h2>
-        <p className="text-sm text-muted-foreground max-w-sm leading-relaxed">
-          The annotation and markup canvas is coming soon. Here you'll be able
-          to draw, annotate, and mark up floor plan images directly.
-        </p>
-      </div>
-      <div className="flex items-center gap-2 mt-2">
-        {["Annotations", "Markup", "Measurements", "Export"].map((tag) => (
-          <span
-            key={tag}
-            className="text-xs bg-muted text-muted-foreground rounded-full px-3 py-1 border border-border/60 font-medium"
-          >
-            {tag}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
+import { ProjectNav, TABS } from "../../components/project/ProjectNav";
 
 /* ── Inline project name editor ─────────────────────────────────────────── */
 function ProjectNameEditor({ project, onRename }) {
@@ -151,11 +117,11 @@ function ProjectNameEditor({ project, onRename }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════
    MAIN PAGE
-══════════════════════════════════════════════════════════════════════════ */
+   ═════════════════════════════════════════════════════════════════════════════ */
 export function ProjectEditorPage() {
-  const { id } = useParams();
+  const { id, tab = "source" } = useParams();
   const navigate = useNavigate();
   const {
     currentProject,
@@ -165,49 +131,14 @@ export function ProjectEditorPage() {
     rename,
     clearCurrentProj,
   } = useProjects();
-  const [activeTab, setActiveTab] = useState("source");
 
   // Fetch this specific project from backend on mount (or when id changes)
-  // This ensures it works even on direct navigation / page refresh
   useEffect(() => {
     loadOne(id);
-    return () => clearCurrentProj(); // clean up on unmount
+    return () => clearCurrentProj();
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const project = currentProject;
-
-  const TABS = [
-    {
-      key: "source",
-      label: "Source",
-      icon: Database,
-      desc: "Manage source images",
-    },
-    {
-      key: "room-separator",
-      label: "Room Separator",
-      icon: Scissors,
-      desc: "Cut rooms from plans",
-    },
-    {
-      key: "room-processor",
-      label: "Room Processor",
-      icon: Wand2,
-      desc: "Process cut rooms",
-    },
-    {
-      key: "budget",
-      label: "Budget",
-      icon: Receipt,
-      desc: "View & edit budget",
-    },
-    {
-      key: "summary",
-      label: "Summary",
-      icon: BarChart3,
-      desc: "Project overview",
-    },
-  ];
 
   // Loading state
   if (currentProjectLoading && !project) {
@@ -242,6 +173,40 @@ export function ProjectEditorPage() {
     );
   }
 
+  const renderTabContent = () => {
+    if (!project) {
+      return (
+        <div className="flex items-center justify-center flex-1 gap-2 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span className="text-sm">Loading project…</span>
+        </div>
+      );
+    }
+
+    switch (tab) {
+      case "source":
+        return <SourceTab project={project} />;
+      case "room_separator":
+        return <RoomSeparatorTab project={project} />;
+      case "room_processor":
+        return <RoomProcessorTab project={project} />;
+      case "budget":
+        return (
+          <div className="flex-1 overflow-y-auto p-6">
+            <BudgetPage projectId={project?._id ?? project?.id} />
+          </div>
+        );
+      case "summary":
+        return <SummaryTab project={project} />;
+      default:
+        return <SourceTab project={project} />;
+    }
+  };
+
+  const activeTabLabel = TABS.find((t) => t.key === tab)?.label || "Source";
+  const activeTabIcon = TABS.find((t) => t.key === tab)?.icon || Database;
+  const ActiveTabIcon = activeTabIcon;
+
   return (
     <div className="fixed inset-0 flex bg-background overflow-hidden">
       {/* ── Project sidebar ── */}
@@ -255,7 +220,7 @@ export function ProjectEditorPage() {
             All Projects
           </button>
           <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 shrink-0 rounded-lg bg-gradient-to-br from-violet-500/25 to-indigo-600/25 border border-violet-500/25 flex items-center justify-center shadow-sm">
+            <div className="h-8 w-8 shrink-0 rounded-lg bg-linear-to-br from-violet-500/25 to-indigo-600/25 border border-violet-500/25 flex items-center justify-center shadow-sm">
               <FolderOpen className="h-4 w-4 text-violet-300" />
             </div>
             <div className="min-w-0 flex-1">
@@ -272,48 +237,7 @@ export function ProjectEditorPage() {
           </div>
         </div>
 
-        <nav className="flex-1 py-3 px-2.5 space-y-0.5 overflow-y-auto">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-sidebar-foreground/25 px-2 pt-1 pb-2">
-            Project Tools
-          </p>
-          {TABS.map(({ key, label, icon: Icon, desc }) => {
-            const isActive = activeTab === key;
-            return (
-              <button
-                key={key}
-                onClick={() => setActiveTab(key)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-all duration-200 relative group
-                                    ${
-                                      isActive
-                                        ? "bg-sidebar-accent text-sidebar-foreground shadow-sm"
-                                        : "text-sidebar-foreground/45 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground/80"
-                                    }`}
-              >
-                {isActive && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-[3px] rounded-r-full bg-gradient-to-b from-violet-400 to-indigo-500" />
-                )}
-                <div
-                  className={`h-8 w-8 shrink-0 rounded-lg flex items-center justify-center transition-all duration-200
-                                    ${
-                                      isActive
-                                        ? "bg-gradient-to-br from-violet-500/20 to-indigo-500/20 border border-violet-500/20"
-                                        : "bg-sidebar-foreground/[0.04] border border-sidebar-foreground/[0.07] group-hover:bg-sidebar-foreground/[0.08]"
-                                    }`}
-                >
-                  <Icon
-                    className={`h-4 w-4 transition-colors ${isActive ? "text-violet-400" : "text-sidebar-foreground/30 group-hover:text-sidebar-foreground/60"}`}
-                  />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold leading-none">{label}</p>
-                  <p className="text-[10px] text-sidebar-foreground/25 mt-1 leading-none">
-                    {desc}
-                  </p>
-                </div>
-              </button>
-            );
-          })}
-        </nav>
+        <ProjectNav activeTab={tab} project={project} />
 
         {project && (
           <div className="px-3 py-3 border-t border-sidebar-border space-y-2">
@@ -350,21 +274,17 @@ export function ProjectEditorPage() {
       {/* ── Main content ── */}
       <div className="flex-1 flex flex-col overflow-hidden bg-background">
         <div className="h-14 shrink-0 border-b border-border/50 px-6 flex items-center gap-3 bg-background">
-          {TABS.map(({ key, label, icon: Icon }) =>
-            activeTab === key ? (
-              <div key={key} className="flex items-center gap-2.5">
-                <div className="h-7 w-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
-                  <Icon className="h-4 w-4 text-violet-400" />
-                </div>
-                <span className="font-semibold text-sm">{label}</span>
-                {project && (
-                  <span className="text-xs text-muted-foreground/50 font-normal">
-                    — {project.name}
-                  </span>
-                )}
-              </div>
-            ) : null,
-          )}
+          <div className="flex items-center gap-2.5">
+            <div className="h-7 w-7 rounded-lg bg-violet-500/10 flex items-center justify-center">
+              <ActiveTabIcon className="h-4 w-4 text-violet-400" />
+            </div>
+            <span className="font-semibold text-sm">{activeTabLabel}</span>
+            {project && (
+              <span className="text-xs text-muted-foreground/50 font-normal">
+                — {project.name}
+              </span>
+            )}
+          </div>
           {/* Refresh button */}
           <button
             onClick={() => loadOne(id)}
@@ -381,24 +301,7 @@ export function ProjectEditorPage() {
         </div>
 
         <div className="flex-1 overflow-hidden flex flex-col">
-          {!project ? (
-            <div className="flex items-center justify-center flex-1 gap-2 text-muted-foreground">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span className="text-sm">Loading project…</span>
-            </div>
-          ) : activeTab === "source" ? (
-            <SourceTab project={project} />
-          ) : activeTab === "room-separator" ? (
-            <RoomSeparatorTab project={project} />
-          ) : activeTab === "room-processor" ? (
-            <RoomProcessorTab project={project} />
-          ) : activeTab === "budget" ? (
-            <div className="flex-1 overflow-y-auto p-6">
-              <BudgetPage projectId={project?._id ?? project?.id} />
-            </div>
-          ) : (
-            <SummaryTab project={project} />
-          )}
+          {renderTabContent()}
         </div>
       </div>
     </div>

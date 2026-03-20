@@ -33,6 +33,7 @@ function App() {
 
         {/* Project editor — full screen, own sidebar only */}
         <Route path="/projects/:id" element={<ProjectEditorPage />} />
+        <Route path="/projects/:id/:tab" element={<ProjectEditorPage />} />
       </Routes>
     </BrowserRouter>
   );
