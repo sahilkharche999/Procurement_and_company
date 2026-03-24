@@ -61,10 +61,11 @@ def _persist_group_in_mongo(group_payload, room_id=None, project_id=None):
         doc = {
             "name": group_payload.get("name", ""),
             "code": group_payload.get("code", ""),
+            "description" : group_payload.get("description", ""),
             "color": group_payload.get("color", [141, 106, 59]),
             "type": group_payload.get("type", "FF&E"),
             "room": str(room_id or ""),
-            "project": str(project_id or ""),
+            "project": str(project_id or "")
         }
 
         result = groups_coll.insert_one(doc)
@@ -172,9 +173,12 @@ def generate_masks_polygons_from_pixels_json(
     mask_counter = 0
 
     for obj_idx, obj in enumerate(objects):
+        description = (obj.get("description") or "").strip()
+
         group_payload = {
             "name": obj.get("name") or random_group_name("Object"),
             "code": obj.get("code", ""),
+            "description": description,
             "color": random_color(),
             "type": default_group_type,
         }
@@ -192,6 +196,7 @@ def generate_masks_polygons_from_pixels_json(
             "code": group_payload["code"],
             "color": group_payload["color"],
             "type": group_payload["type"],
+            "description": group_payload["description"],
             "room": str(room_id or ""),
             "project": str(project_id or ""),
         }
@@ -212,8 +217,11 @@ def generate_masks_polygons_from_pixels_json(
             mask_obj = {
                 "id": _make_mask_id(mask_counter),
                 "group_id": group_id,
+                "project_id": project_id,
                 "polygons": [polygon],
                 "source": "system",
+                "type": "label",
+                "description": description,
             }
             result["masks"].append(mask_obj)
 
