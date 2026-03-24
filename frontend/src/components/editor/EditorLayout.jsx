@@ -58,9 +58,9 @@ export default function EditorLayout() {
           setBgImageUrl(buildServerUrl(roomData.room_image_url));
         }
 
-        if (roomData.masks_polygons_url) {
+        if (roomData.project) {
           const masksRes = await fetch(
-            `${buildServerUrl(roomData.masks_polygons_url)}?t=${Date.now()}`,
+            `${buildServerUrl(`/rooms/${roomId}/editor-data/${roomData.project}`)}?t=${Date.now()}`,
             { cache: "no-store" },
           );
           if (masksRes.ok) {
@@ -223,6 +223,13 @@ export default function EditorLayout() {
         body: JSON.stringify({ masks, groups }),
       });
       if (!res.ok) throw new Error("Failed to persist");
+
+      const persisted = await res.json();
+      if (persisted?.groups && persisted?.masks) {
+        setGroups(persisted.groups);
+        setMasks(persisted.masks);
+      }
+
       setSaveStatus("Persisted to database");
       setTimeout(() => setSaveStatus(null), 2000);
     } catch (err) {
