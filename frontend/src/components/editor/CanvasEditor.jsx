@@ -85,7 +85,9 @@ export default function CanvasEditor({
   setContextMenu,
   onCtrlClickMask, // (maskId, { x, y }) => void — Ctrl+Click in reassign mode
   isDrawMode,
+  isLabelDrawMode,
   onSaveNewMask, // (polygonArray) => void
+  onCreateLabelMask, // (polygonArray) => void
   onUpdateMaskPosition, // (maskId, dx, dy) => void
   onUpdateMaskPolygons, // (maskId, newPolygons) => void
   bgImageUrl,
@@ -109,7 +111,7 @@ export default function CanvasEditor({
 
   useEffect(() => {
     if (trRef.current) {
-      if (changeGroupMode || isDrawMode) {
+      if (changeGroupMode || isDrawMode || isLabelDrawMode) {
         trRef.current.nodes([]);
       } else {
         const nodes = (selectedMaskIds || [])
@@ -119,7 +121,17 @@ export default function CanvasEditor({
         trRef.current.getLayer().batchDraw();
       }
     }
-  }, [selectedMaskIds, masks, changeGroupMode, isDrawMode]);
+  }, [selectedMaskIds, masks, changeGroupMode, isDrawMode, isLabelDrawMode]);
+
+  useEffect(() => {
+    const container = stageRef.current?.container();
+    if (!container) return;
+    if (isDrawMode || isLabelDrawMode) {
+      container.style.cursor = "crosshair";
+      return;
+    }
+    container.style.cursor = "default";
+  }, [isDrawMode, isLabelDrawMode]);
 
   useEffect(() => {
     if (!isDrawMode) {
@@ -171,6 +183,8 @@ export default function CanvasEditor({
 
   // ── Shift-drag mouse handlers ─────────────────────────────────────────────
   const handleMouseDown = (e) => {
+    if (isLabelDrawMode) return;
+
     if (e.evt.shiftKey) {
       // In reassign mode: Shift+Click on a MASK should toggle selection (handled
       // by the Line's onClick). Only start a drag-selection box when clicking the
@@ -257,6 +271,11 @@ export default function CanvasEditor({
 
   // ── Per-mask click handler ────────────────────────────────────────────────
   const handleMaskClick = (e, mask) => {
+    if (isLabelDrawMode) {
+      e.cancelBubble = true;
+      return;
+    }
+
     if (isSelecting) return; // drag-select in progress, ignore clicks
 
     const isShift = e.evt.shiftKey;
@@ -414,7 +433,7 @@ export default function CanvasEditor({
       scaleY={scale}
       x={position.x}
       y={position.y}
-      draggable={!isSelecting && !isDrawMode}
+      draggable={!isSelecting && !isDrawMode && !isLabelDrawMode}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -422,12 +441,17 @@ export default function CanvasEditor({
         if (isSelecting) e.target.stopDrag();
       }}
       onDragMove={(e) => {
-        if (!isSelecting && !isDrawMode && e.target === e.target.getStage()) {
+        if (
+          !isSelecting &&
+          !isDrawMode &&
+          !isLabelDrawMode &&
+          e.target === e.target.getStage()
+        ) {
           setPosition({ x: e.target.x(), y: e.target.y() });
         }
       }}
       onWheel={handleWheel}
-      // Background click → deselect all (in reassign mode), or add drawing point
+      // Background click → drawing action or deselect
       onClick={(e) => {
         if (isDrawMode) {
           if (e.evt.button === 0) {
@@ -439,11 +463,39 @@ export default function CanvasEditor({
           }
           return;
         }
-        if (e.target === e.target.getStage() && changeGroupMode) {
+
+        if (isLabelDrawMode) {
+          if (e.evt.button !== 0) return;
+          const pos = e.target.getStage().getRelativePointerPosition();
+          const labelSize = 20;
+          const half = labelSize / 2;
+          const polygon = [
+            pos.x - half,
+            pos.y - half,
+            pos.x + half,
+            pos.y - half,
+            pos.x + half,
+            pos.y + half,
+            pos.x - half,
+            pos.y + half,
+            pos.x - half,
+            pos.y - half,
+          ];
+          onCreateLabelMask?.([polygon]);
+          return;
+        }
+
+        // Deselect masks when clicking on empty stage area
+        if (e.target === e.target.getStage()) {
           setSelectedMaskIds?.([]);
         }
       }}
       onContextMenu={(e) => {
+        if (isLabelDrawMode) {
+          e.evt.preventDefault();
+          return;
+        }
+
         if (isDrawMode) {
           e.evt.preventDefault();
           const pos = e.target.getStage().getRelativePointerPosition();
@@ -477,107 +529,211 @@ export default function CanvasEditor({
           const bounds = calculateMaskBounds(mask);
           if (!bounds) return null;
 
-          const groupCode = String(groupData?.code || "N/A");
-          const horizontalPadding = 14;
-          const verticalPadding = 8;
-          const estimatedTextWidth = Math.max(42, groupCode.length * 11);
+          // Only render as label pill if type === 'label', otherwise as polygon
+          const isLabelMask = mask.type === "label";
 
-          // Keep the new tag centered on top of the original backend mask geometry.
-          const tagWidth = Math.max(
-            bounds.width + horizontalPadding * 2,
-            estimatedTextWidth + horizontalPadding,
-          );
-          const tagHeight = Math.max(bounds.height + verticalPadding * 2, 32);
-          const tagX = bounds.x + bounds.width / 2 - tagWidth / 2;
-          const tagY = bounds.y + bounds.height / 2 - tagHeight / 2;
-          const tagCornerRadius = tagHeight / 2;
+          if (isLabelMask) {
+            // Render as pill-shaped tag with group code
+            const groupCode = String(groupData?.code || "N/A");
+            const horizontalPadding = 14;
+            const verticalPadding = 8;
+            const estimatedTextWidth = Math.max(42, groupCode.length * 11);
 
-          return (
-            <Group
-              key={`mask-group-${mask.id}`}
-              name={`mask-group-${mask.id}`}
-              ref={(node) => {
-                maskRefs.current[mask.id] = node;
-              }}
-              draggable={isSelected && !isDrawMode && !changeGroupMode}
-              onClick={(e) => handleMaskClick(e, mask)}
-              onDragEnd={(e) => {
-                const node = maskRefs.current[mask.id];
-                if (!node) return;
-                const dx = node.x();
-                const dy = node.y();
-                node.x(0);
-                node.y(0);
-                if (onUpdateMaskPosition) {
-                  onUpdateMaskPosition(mask.id, dx, dy);
+            const tagWidth = Math.max(
+              bounds.width + horizontalPadding * 2,
+              estimatedTextWidth + horizontalPadding,
+            );
+            const tagHeight = Math.max(bounds.height + verticalPadding * 2, 32);
+            const tagX = bounds.x + bounds.width / 2 - tagWidth / 2;
+            const tagY = bounds.y + bounds.height / 2 - tagHeight / 2;
+            const tagCornerRadius = tagHeight / 2;
+
+            return (
+              <Group
+                key={`mask-group-${mask.id}`}
+                name={`mask-group-${mask.id}`}
+                ref={(node) => {
+                  maskRefs.current[mask.id] = node;
+                }}
+                draggable={
+                  isSelected &&
+                  !isDrawMode &&
+                  !isLabelDrawMode &&
+                  !changeGroupMode
                 }
-              }}
-              onTransformEnd={(e) => {
-                const node = maskRefs.current[mask.id];
-                if (!node) return;
-                const transform = node.getTransform();
-                const newPolygons = mask.polygons.map((poly) => {
-                  const flatPoly = poly.flat();
-                  const res = [];
-                  for (let i = 0; i < flatPoly.length; i += 2) {
-                    const pt = { x: flatPoly[i], y: flatPoly[i + 1] };
-                    const newPt = transform.point(pt);
-                    res.push(newPt.x, newPt.y);
+                onClick={(e) => handleMaskClick(e, mask)}
+                onDragEnd={(e) => {
+                  const node = maskRefs.current[mask.id];
+                  if (!node) return;
+                  const dx = node.x();
+                  const dy = node.y();
+                  node.x(0);
+                  node.y(0);
+                  if (onUpdateMaskPosition) {
+                    onUpdateMaskPosition(mask.id, dx, dy);
                   }
-                  return res;
-                });
+                }}
+                onTransformEnd={(e) => {
+                  const node = maskRefs.current[mask.id];
+                  if (!node) return;
+                  const transform = node.getTransform();
+                  const newPolygons = mask.polygons.map((poly) => {
+                    const flatPoly = poly.flat();
+                    const res = [];
+                    for (let i = 0; i < flatPoly.length; i += 2) {
+                      const pt = { x: flatPoly[i], y: flatPoly[i + 1] };
+                      const newPt = transform.point(pt);
+                      res.push(newPt.x, newPt.y);
+                    }
+                    return res;
+                  });
 
-                node.x(0);
-                node.y(0);
-                node.scaleX(1);
-                node.scaleY(1);
-                node.rotation(0);
-                node.skewX(0);
-                node.skewY(0);
+                  node.x(0);
+                  node.y(0);
+                  node.scaleX(1);
+                  node.scaleY(1);
+                  node.rotation(0);
+                  node.skewX(0);
+                  node.skewY(0);
 
-                if (onUpdateMaskPolygons) {
-                  onUpdateMaskPolygons(mask.id, newPolygons);
-                }
-              }}
-              onMouseEnter={(e) => {
-                if (isSelected && !isDrawMode && !changeGroupMode) {
+                  if (onUpdateMaskPolygons) {
+                    onUpdateMaskPolygons(mask.id, newPolygons);
+                  }
+                }}
+                onMouseEnter={(e) => {
+                  if (isSelected && !isDrawMode && !changeGroupMode) {
+                    const container = e.target.getStage().container();
+                    container.style.cursor = "move";
+                  }
+                }}
+                onMouseLeave={(e) => {
                   const container = e.target.getStage().container();
-                  container.style.cursor = "move";
-                }
-              }}
-              onMouseLeave={(e) => {
-                const container = e.target.getStage().container();
-                container.style.cursor = "default";
-              }}
-            >
-              <Rect
-                x={tagX}
-                y={tagY}
-                width={tagWidth}
-                height={tagHeight}
-                cornerRadius={tagCornerRadius}
-                fill={fillColor}
-                stroke={strokeColor}
-                strokeWidth={strokeWidth}
-                listening={!isDrawMode}
-              />
+                  container.style.cursor = "default";
+                }}
+              >
+                <Rect
+                  x={tagX}
+                  y={tagY}
+                  width={tagWidth}
+                  height={tagHeight}
+                  cornerRadius={tagCornerRadius}
+                  fill={fillColor}
+                  stroke={strokeColor}
+                  strokeWidth={strokeWidth}
+                  listening={!isDrawMode && !isLabelDrawMode}
+                />
 
-              <Text
-                x={tagX}
-                y={tagY}
-                width={tagWidth}
-                height={tagHeight}
-                text={groupCode}
-                fontSize={18}
-                fontFamily="Arial"
-                fontStyle="bold"
-                align="center"
-                verticalAlign="middle"
-                fill="#111827"
-                listening={false}
-              />
-            </Group>
-          );
+                <Text
+                  x={tagX}
+                  y={tagY}
+                  width={tagWidth}
+                  height={tagHeight}
+                  text={groupCode}
+                  fontSize={18}
+                  fontFamily="Arial"
+                  fontStyle="bold"
+                  align="center"
+                  verticalAlign="middle"
+                  fill="#111827"
+                  listening={false}
+                />
+              </Group>
+            );
+          } else {
+            // Render custom masks as polygon outlines
+            return (
+              <Group
+                key={`mask-group-${mask.id}`}
+                name={`mask-group-${mask.id}`}
+                ref={(node) => {
+                  maskRefs.current[mask.id] = node;
+                }}
+                draggable={
+                  isSelected &&
+                  !isDrawMode &&
+                  !isLabelDrawMode &&
+                  !changeGroupMode
+                }
+                onClick={(e) => handleMaskClick(e, mask)}
+                onDragEnd={(e) => {
+                  const node = maskRefs.current[mask.id];
+                  if (!node) return;
+                  const dx = node.x();
+                  const dy = node.y();
+                  node.x(0);
+                  node.y(0);
+                  if (onUpdateMaskPosition) {
+                    onUpdateMaskPosition(mask.id, dx, dy);
+                  }
+                }}
+                onTransformEnd={(e) => {
+                  const node = maskRefs.current[mask.id];
+                  if (!node) return;
+                  const transform = node.getTransform();
+                  const newPolygons = mask.polygons.map((poly) => {
+                    const flatPoly = poly.flat();
+                    const res = [];
+                    for (let i = 0; i < flatPoly.length; i += 2) {
+                      const pt = { x: flatPoly[i], y: flatPoly[i + 1] };
+                      const newPt = transform.point(pt);
+                      res.push(newPt.x, newPt.y);
+                    }
+                    return res;
+                  });
+
+                  node.x(0);
+                  node.y(0);
+                  node.scaleX(1);
+                  node.scaleY(1);
+                  node.rotation(0);
+                  node.skewX(0);
+                  node.skewY(0);
+
+                  if (onUpdateMaskPolygons) {
+                    onUpdateMaskPolygons(mask.id, newPolygons);
+                  }
+                }}
+                onMouseEnter={(e) => {
+                  if (isSelected && !isDrawMode && !changeGroupMode) {
+                    const container = e.target.getStage().container();
+                    container.style.cursor = "move";
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  const container = e.target.getStage().container();
+                  container.style.cursor = "default";
+                }}
+              >
+                {mask.polygons.map((polygon, polyIndex) => (
+                  <Line
+                    key={`polygon-${polyIndex}`}
+                    points={polygon.flat()}
+                    fill={fillColor}
+                    stroke={strokeColor}
+                    strokeWidth={strokeWidth}
+                    closed
+                    listening={!isDrawMode && !isLabelDrawMode}
+                  />
+                ))}
+
+                {/* Group code label for custom masks */}
+                <Text
+                  x={bounds.x + bounds.width / 2}
+                  y={bounds.y + bounds.height / 2}
+                  text={String(groupData?.code || "N/A")}
+                  fontSize={18}
+                  fontFamily="Arial"
+                  fontStyle="bold"
+                  align="center"
+                  verticalAlign="middle"
+                  fill="#111827"
+                  listening={false}
+                  offsetX={bounds.width / 4}
+                  offsetY={10}
+                />
+              </Group>
+            );
+          }
         })}
 
         {/* Shift-drag selection rectangle */}
@@ -595,7 +751,7 @@ export default function CanvasEditor({
         )}
 
         {/* Transformer (bounding box + rotation handles) */}
-        {!isDrawMode && !changeGroupMode && (
+        {!isDrawMode && !isLabelDrawMode && !changeGroupMode && (
           <Transformer
             ref={trRef}
             flipEnabled={false}
