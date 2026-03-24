@@ -7,10 +7,70 @@ import {
   Circle,
   Group,
   Transformer,
+  Text,
 } from "react-konva";
 import { useState, useRef, useEffect } from "react";
 import useImage from "use-image";
 // import defaultFloorImage from "../../data/floorplan.png";
+
+// Helper function to calculate bounding box of a polygon
+const calculatePolygonBounds = (polygon) => {
+  if (!polygon || polygon.length === 0) {
+    return null;
+  }
+  const flatPoints = Array.isArray(polygon[0]) ? polygon.flat() : polygon;
+  let minX = Infinity,
+    maxX = -Infinity,
+    minY = Infinity,
+    maxY = -Infinity;
+
+  for (let i = 0; i < flatPoints.length; i += 2) {
+    minX = Math.min(minX, flatPoints[i]);
+    maxX = Math.max(maxX, flatPoints[i]);
+    minY = Math.min(minY, flatPoints[i + 1]);
+    maxY = Math.max(maxY, flatPoints[i + 1]);
+  }
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+};
+
+// Helper function to calculate bounding box of all polygons in a mask
+const calculateMaskBounds = (mask) => {
+  if (!mask.polygons || mask.polygons.length === 0) {
+    return null;
+  }
+
+  let minX = Infinity,
+    maxX = -Infinity,
+    minY = Infinity,
+    maxY = -Infinity;
+
+  mask.polygons.forEach((polygon) => {
+    const bounds = calculatePolygonBounds(polygon);
+    if (bounds) {
+      minX = Math.min(minX, bounds.x);
+      maxX = Math.max(maxX, bounds.x + bounds.width);
+      minY = Math.min(minY, bounds.y);
+      maxY = Math.max(maxY, bounds.y + bounds.height);
+    }
+  });
+
+  if (minX === Infinity) {
+    return null;
+  }
+
+  return {
+    x: minX,
+    y: minY,
+    width: maxX - minX,
+    height: maxY - minY,
+  };
+};
 
 export default function CanvasEditor({
   groups,
@@ -414,6 +474,23 @@ export default function CanvasEditor({
             : `rgba(200,200,200,${opacity})`;
           const strokeColor = getMaskStroke(isSelected);
           const strokeWidth = isSelected ? 3 : 1;
+          const bounds = calculateMaskBounds(mask);
+          if (!bounds) return null;
+
+          const groupCode = String(groupData?.code || "N/A");
+          const horizontalPadding = 14;
+          const verticalPadding = 8;
+          const estimatedTextWidth = Math.max(42, groupCode.length * 11);
+
+          // Keep the new tag centered on top of the original backend mask geometry.
+          const tagWidth = Math.max(
+            bounds.width + horizontalPadding * 2,
+            estimatedTextWidth + horizontalPadding,
+          );
+          const tagHeight = Math.max(bounds.height + verticalPadding * 2, 32);
+          const tagX = bounds.x + bounds.width / 2 - tagWidth / 2;
+          const tagY = bounds.y + bounds.height / 2 - tagHeight / 2;
+          const tagCornerRadius = tagHeight / 2;
 
           return (
             <Group
@@ -473,17 +550,32 @@ export default function CanvasEditor({
                 container.style.cursor = "default";
               }}
             >
-              {mask.polygons.map((polygon, idx) => (
-                <Line
-                  key={`${mask.id}-${idx}`}
-                  points={polygon.flat()}
-                  closed
-                  fill={fillColor}
-                  stroke={strokeColor}
-                  strokeWidth={strokeWidth}
-                  listening={!isDrawMode}
-                />
-              ))}
+              <Rect
+                x={tagX}
+                y={tagY}
+                width={tagWidth}
+                height={tagHeight}
+                cornerRadius={tagCornerRadius}
+                fill={fillColor}
+                stroke={strokeColor}
+                strokeWidth={strokeWidth}
+                listening={!isDrawMode}
+              />
+
+              <Text
+                x={tagX}
+                y={tagY}
+                width={tagWidth}
+                height={tagHeight}
+                text={groupCode}
+                fontSize={18}
+                fontFamily="Arial"
+                fontStyle="bold"
+                align="center"
+                verticalAlign="middle"
+                fill="#111827"
+                listening={false}
+              />
             </Group>
           );
         })}
