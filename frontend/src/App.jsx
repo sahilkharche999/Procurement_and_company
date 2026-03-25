@@ -12,6 +12,7 @@ import { SettingsPage } from "./pages/settings/SettingsPage";
 import { FloorPlanPage } from "./pages/floorplan/FloorPlanPage";
 import { ProjectsPage } from "./pages/project/ProjectsPage";
 import { ProjectEditorPage } from "./pages/project/ProjectEditorPage";
+import { PriceRegisterPage } from "./pages/price-register/PriceRegisterPage";
 import EditorLayout from "./components/editor/EditorLayout";
 
 function App() {
@@ -26,6 +27,7 @@ function App() {
           <Route path="vendors" element={<VendorsPage />} />
           <Route path="floor-plans" element={<FloorPlanPage />} />
           <Route path="projects" element={<ProjectsPage />} />
+          <Route path="price-register" element={<PriceRegisterPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="editor" element={<EditorLayout />} />
           <Route path="editor/:roomId" element={<EditorLayout />} />

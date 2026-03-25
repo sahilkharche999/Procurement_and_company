@@ -8,6 +8,7 @@ import {
     Building2,
     ChevronRight,
     FolderOpen,
+    Tags,
 } from "lucide-react"
 import { useLocation, Link } from "react-router-dom"
 import { cn } from "../../lib/utils"
@@ -26,6 +27,7 @@ const NAV_ITEMS = [
     { title: "Procurement", url: "/procurement", icon: ShoppingCart },
     { title: "Floor Plans", url: "/floor-plans", icon: FileText },
     { title: "Projects", url: "/projects", icon: FolderOpen },
+    { title: "Price Register", url: "/price-register", icon: Tags },
     { title: "Vendors", url: "/vendors", icon: Users },
     { title: "Settings", url: "/settings", icon: Settings },
 ]

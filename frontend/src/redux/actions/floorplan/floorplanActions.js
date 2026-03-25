@@ -9,7 +9,7 @@ export const startProcessing = createAsyncThunk(
             form.append('pdf_id', pdfId)
             form.append('dpi', dpi)
             form.append('min_area_pct', minAreaPct)
-            const res = await api.post('/floorplan/process', form, {
+            const res = await api.post('/floorplan/processing-jobs', form, {
                 headers: { 'Content-Type': undefined },
             })
             return res.data
@@ -23,7 +23,7 @@ export const pollJobStatus = createAsyncThunk(
     'floorplan/pollJobStatus',
     async (jobId, { rejectWithValue }) => {
         try {
-            const res = await api.get(`/floorplan/job/${jobId}`)
+            const res = await api.get(`/floorplan/processing-jobs/${jobId}`)
             return res.data
         } catch (err) {
             return rejectWithValue(err.response?.data?.detail || err.message)
@@ -35,7 +35,7 @@ export const fetchJobImages = createAsyncThunk(
     'floorplan/fetchJobImages',
     async (jobId, { rejectWithValue }) => {
         try {
-            const res = await api.get(`/floorplan/job/${jobId}/images`)
+            const res = await api.get(`/floorplan/processing-jobs/${jobId}/diagrams`)
             return res.data
         } catch (err) {
             return rejectWithValue(err.response?.data?.detail || err.message)
@@ -47,7 +47,7 @@ export const saveSelectedImages = createAsyncThunk(
     'floorplan/saveSelectedImages',
     async ({ jobId, selected }, { rejectWithValue }) => {
         try {
-            const res = await api.post(`/floorplan/job/${jobId}/save-selected`, { selected })
+            const res = await api.post(`/floorplan/processing-jobs/${jobId}/selected-diagrams`, { selected })
             return res.data
         } catch (err) {
             return rejectWithValue(err.response?.data?.detail || err.message)
@@ -59,7 +59,7 @@ export const fetchJobs = createAsyncThunk(
     'floorplan/fetchJobs',
     async (_, { rejectWithValue }) => {
         try {
-            const res = await api.get('/floorplan/jobs')
+            const res = await api.get('/floorplan/processing-jobs')
             return res.data
         } catch (err) {
             return rejectWithValue(err.response?.data?.detail || err.message)

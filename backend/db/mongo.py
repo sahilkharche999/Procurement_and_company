@@ -55,3 +55,7 @@ def get_groups_collection():
 
 def get_masks_collection():
     return get_db()["masks"]
+
+
+def get_items_collection():
+    return get_db()["items"]

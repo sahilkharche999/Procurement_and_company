@@ -13,6 +13,7 @@ import { buildServerUrl } from "../../config";
 export default function EditorLayout() {
   const { roomId } = useParams();
   const [bgImageUrl, setBgImageUrl] = useState(null);
+  const [projectId, setProjectId] = useState("");
   const [roomIncludedInBudget, setRoomIncludedInBudget] = useState(false);
   const [roomIncludeLoading, setRoomIncludeLoading] = useState(false);
 
@@ -51,6 +52,8 @@ export default function EditorLayout() {
         const res = await fetch(buildServerUrl(`/rooms/${roomId}`));
         if (!res.ok) throw new Error("Failed to fetch room");
         const roomData = await res.json();
+        const projectIdFromRoom = String(roomData.project || "");
+        setProjectId(projectIdFromRoom);
 
         setRoomIncludedInBudget(!!roomData.is_included_in_budget);
 
@@ -58,9 +61,9 @@ export default function EditorLayout() {
           setBgImageUrl(buildServerUrl(roomData.room_image_url));
         }
 
-        if (roomData.project) {
+        if (projectIdFromRoom) {
           const masksRes = await fetch(
-            `${buildServerUrl(`/rooms/${roomId}/editor-data/${roomData.project}`)}?t=${Date.now()}`,
+            `${buildServerUrl(`/projects/${projectIdFromRoom}/rooms/${roomId}/editor-state`)}?t=${Date.now()}`,
             { cache: "no-store" },
           );
           if (masksRes.ok) {
@@ -217,11 +220,16 @@ export default function EditorLayout() {
   const handlePersist = useCallback(async () => {
     try {
       setSaveStatus("Saving to backend...");
-      const res = await fetch(buildServerUrl(`/rooms/${roomId}/masks`), {
+      if (!projectId) throw new Error("Missing project context for room");
+
+      const res = await fetch(
+        buildServerUrl(`/projects/${projectId}/rooms/${roomId}/editor-state`),
+        {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ masks, groups }),
-      });
+        },
+      );
       if (!res.ok) throw new Error("Failed to persist");
 
       const persisted = await res.json();
@@ -237,15 +245,16 @@ export default function EditorLayout() {
       setSaveStatus("Error saving to database");
       setTimeout(() => setSaveStatus(null), 2500);
     }
-  }, [roomId, masks, groups]);
+  }, [roomId, projectId, masks, groups]);
 
   const handleToggleRoomIncludedInBudget = useCallback(
     async (nextValue) => {
       if (!roomId) return;
+      if (!projectId) return;
       try {
         setRoomIncludeLoading(true);
         const res = await fetch(
-          buildServerUrl(`/rooms/${roomId}/include-in-budget`),
+          buildServerUrl(`/projects/${projectId}/rooms/${roomId}/budget-inclusion`),
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -261,7 +270,7 @@ export default function EditorLayout() {
         setRoomIncludeLoading(false);
       }
     },
-    [roomId],
+    [roomId, projectId],
   );
 
   const moveSelectedMasksBy = useCallback(

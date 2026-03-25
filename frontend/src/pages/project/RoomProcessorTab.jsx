@@ -292,11 +292,16 @@ export function RoomProcessorTab({ project }) {
 
     try {
       setRoomBudgetLoading((prev) => ({ ...prev, [roomKey]: true }));
-      const res = await fetch(buildServerUrl(`/rooms/${roomId}/include-in-budget`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ is_included_in_budget: nextValue }),
-      });
+      const res = await fetch(
+        buildServerUrl(
+          `/projects/${projectId}/rooms/${roomId}/budget-inclusion`,
+        ),
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ is_included_in_budget: nextValue }),
+        },
+      );
       if (!res.ok) throw new Error("Failed to update room budget flag");
       const updated = await res.json();
       setRoomBudgetInclude((prev) => ({
