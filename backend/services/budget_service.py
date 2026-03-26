@@ -11,6 +11,7 @@ from typing import Optional
 from bson import ObjectId
 
 from db.mongo import get_db
+from services.budget_to_price_item_sync_service import sync_price_item_from_budget
 
 
 def _col():
@@ -293,6 +294,9 @@ async def create_item(project_id: str, data: dict) -> dict:
     }
     result = await col.insert_one(doc)
     doc["_id"] = str(result.inserted_id)
+
+    # Mirror into price register dictionary (items collection).
+    await sync_price_item_from_budget(doc)
     return doc
 
 
@@ -342,7 +346,11 @@ async def update_item(item_id: str, updates: dict) -> dict | None:
     doc["updated_at"] = _now()
 
     await col.replace_one({"_id": ObjectId(item_id)}, doc)
-    return _serialize(doc)
+    doc_serial = _serialize(doc)
+
+    # Mirror into price register dictionary (items collection).
+    await sync_price_item_from_budget(doc_serial)
+    return doc_serial
 
 
 async def delete_item(item_id: str) -> bool:
@@ -717,6 +725,7 @@ async def create_preliminary_budget(project_id: str) -> dict:
             if existing:
                 # OVERRIDE qty with current count from JSON (not increment)
                 new_extended = _calc_extended(qty_str, existing.get("unit_cost"))
+                updated_at = _now()
                 await col.update_one(
                     {"_id": existing["_id"]},
                     {"$set": {
@@ -727,9 +736,23 @@ async def create_preliminary_budget(project_id: str) -> dict:
                         "room": room_id,
                         "page_id": page_id_str,
                         "page_no": page_no_val,
-                        "updated_at": _now(),
+                        "updated_at": updated_at,
                     }},
                 )
+
+                updated_doc = dict(existing)
+                updated_doc.update({
+                    "qty": qty_str,
+                    "extended": new_extended,
+                    "name": group_name,
+                    "description": group_desc,
+                    "room": room_id,
+                    "page_id": page_id_str,
+                    "page_no": page_no_val,
+                    "updated_at": updated_at,
+                })
+                await sync_price_item_from_budget(updated_doc)
+
                 updated_count += 1
                 print(f"[BudgetGen]    -> SYNCED qty to {qty_str!r}, room={room_name!r} ({room_id}), page_no={page_no_val!r}")
 
@@ -757,6 +780,8 @@ async def create_preliminary_budget(project_id: str) -> dict:
                     "updated_at": now,
                 }
                 result = await col.insert_one(new_doc)
+                new_doc["_id"] = str(result.inserted_id)
+                await sync_price_item_from_budget(new_doc)
                 created_count += 1
                 print(
                     f"[BudgetGen]    -> CREATED _id={result.inserted_id}, room={room_name!r} ({room_id}), page_no={page_no_val!r}")
