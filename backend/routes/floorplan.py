@@ -59,6 +59,17 @@ async def start_processing(
     return JobOut.model_validate(job_data)
 
 
+# Clearer alias: create processing job
+@router.post("/processing-jobs")
+async def create_floorplan_processing_job(
+    background_tasks: BackgroundTasks,
+    pdf_id: str = Form(...),
+    dpi: int = Form(300),
+    min_area_pct: float = Form(5.0)
+):
+    return await start_processing(background_tasks, pdf_id, dpi, min_area_pct)
+
+
 @router.get("/job/{job_id}")
 async def get_job_status(job_id: str):
     jobs_coll = get_processing_jobs_collection()
@@ -67,6 +78,12 @@ async def get_job_status(job_id: str):
         raise HTTPException(404, "Job not found")
     job["id"] = str(job.pop("_id"))
     return JobOut.model_validate(job)
+
+
+# Clearer alias: get single processing job
+@router.get("/processing-jobs/{job_id}")
+async def get_floorplan_processing_job(job_id: str):
+    return await get_job_status(job_id)
 
 
 @router.get("/job/{job_id}/images")
@@ -102,6 +119,12 @@ async def get_job_images(job_id: str):
         })
 
     return {"images": images, "total": len(images), "status": "done"}
+
+
+# Clearer alias: list extracted diagrams for a processing job
+@router.get("/processing-jobs/{job_id}/diagrams")
+async def get_floorplan_processing_job_diagrams(job_id: str):
+    return await get_job_images(job_id)
 
 
 @router.post("/job/{job_id}/save-selected")
@@ -169,6 +192,12 @@ async def save_selected_images(job_id: str, body: dict):
     return metadata
 
 
+# Clearer alias: persist selected diagrams for a processing job
+@router.post("/processing-jobs/{job_id}/selected-diagrams")
+async def save_floorplan_selected_diagrams(job_id: str, body: dict):
+    return await save_selected_images(job_id, body)
+
+
 @router.get("/jobs")
 async def list_jobs():
     jobs_coll = get_processing_jobs_collection()
@@ -180,6 +209,18 @@ async def list_jobs():
     return result
 
 
+# Clearer alias: list processing jobs
+@router.get("/processing-jobs")
+async def list_floorplan_processing_jobs():
+    return await list_jobs()
+
+
 @router.get("/yolo-status")
 def get_yolo_status_route():
     return get_yolo_status()
+
+
+# Clearer alias: health endpoint for processing model status
+@router.get("/processing-health/yolo")
+def get_floorplan_processing_health():
+    return get_yolo_status_route()

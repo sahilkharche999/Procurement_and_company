@@ -454,6 +454,14 @@ async def extract_rooms(project_id: str, body: dict):
         if diagram:
             room_ids = []
             for res in results:
+                image_width = 0
+                image_height = 0
+                saved_path = res.get("saved_path")
+                if saved_path and os.path.exists(saved_path):
+                    img = cv2.imread(saved_path)
+                    if img is not None:
+                        image_height, image_width = img.shape[:2]
+
                 # Store new Room document
                 new_room = {
                     "_id": ObjectId() if len(res["id"]) != 24 else ObjectId(res["id"]),
@@ -466,6 +474,8 @@ async def extract_rooms(project_id: str, body: dict):
                     "is_included_in_budget": False,
                     "room_name": res["name"],
                     "room_image_url": res["url"],
+                    "image_width": int(image_width),
+                    "image_height": int(image_height),
                     "mask_array": res["mask_array"],
                     "created_at": res.get("created_at") or datetime.now().isoformat()
                 }

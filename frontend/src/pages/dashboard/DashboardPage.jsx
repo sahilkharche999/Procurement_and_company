@@ -75,7 +75,7 @@ export function DashboardPage() {
                 </Card>
                 <Card className="col-span-3">
                     <CardHeader>
-                        <CardTitle>Quick Actions</CardTitle>
+                        <CardTitle>Quick Action</CardTitle>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-2">
@@ -85,7 +85,6 @@ export function DashboardPage() {
                     </CardContent>
                 </Card>
             </div>
-
         </div>
     )
 }

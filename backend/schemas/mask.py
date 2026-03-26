@@ -1,22 +1,28 @@
 """
-schemas/group.py
-Pydantic models for canonical groups collection.
+schemas/mask.py
+Pydantic models for canonical masks collection.
 """
 from __future__ import annotations
 
-from typing import Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 
-class GroupBase(BaseModel):
+class MaskBase(BaseModel):
     name: str
     code: str = ""
     color: list[int] = [141, 106, 59]
     type: Literal["FF&E", "OFCI"] = "FF&E"
-    user_entered_qty: Optional[str] = None
+    description: str = ""
     room: str = ""
     project: str = ""
+
+    # Optional geometry/relationship fields used by editor-generated labels
+    group_id: str = ""
+    polygons: list[list[float]] = []
+    source: str = "system"
+    mask_type: Literal["label", "custom"] = "label"
 
     @field_validator("color")
     @classmethod
@@ -28,16 +34,22 @@ class GroupBase(BaseModel):
         return v
 
 
-class GroupCreate(GroupBase):
+class MaskCreate(MaskBase):
     pass
 
 
-class GroupUpdate(BaseModel):
+class MaskUpdate(BaseModel):
     name: str | None = None
     code: str | None = None
     color: list[int] | None = None
     type: Literal["FF&E", "OFCI"] | None = None
-    user_entered_qty: Optional[str] = None
+    description: str | None = None
+    room: str | None = None
+    project: str | None = None
+    group_id: str | None = None
+    polygons: list[list[float]] | None = None
+    source: str | None = None
+    mask_type: Literal["label", "custom"] | None = None
 
     @field_validator("color")
     @classmethod
@@ -51,7 +63,7 @@ class GroupUpdate(BaseModel):
         return v
 
 
-class GroupOut(GroupBase):
+class MaskOut(MaskBase):
     id: str = Field(alias="_id")
 
     model_config = {"populate_by_name": True}

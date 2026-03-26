@@ -10,8 +10,8 @@ from typing import Optional
 
 from bson import ObjectId
 
-from config import LOCAL_FILE_DB
 from db.mongo import get_db
+from services.budget_to_price_item_sync_service import sync_price_item_from_budget
 
 
 def _col():
@@ -270,7 +270,12 @@ async def create_item(project_id: str, data: dict) -> dict:
     else:
         new_index = await _max_order(project_id) + 1
 
-    extended = _calc_extended(data.get("qty", "1"), data.get("unit_cost"))
+    qty_value = str(data.get("qty", "1") or "1")
+    user_entered_qty = data.get("user_entered_qty")
+    if user_entered_qty is not None:
+        user_entered_qty = str(user_entered_qty).strip() or None
+    effective_qty = user_entered_qty or qty_value
+    extended = _calc_extended(effective_qty, data.get("unit_cost"))
     now = _now()
     doc = {
         "project": project_id,
@@ -281,7 +286,8 @@ async def create_item(project_id: str, data: dict) -> dict:
         "description": data.get("description", ""),
         "group_id": data.get("group_id", ""),
         "page_no": data.get("page_no"),
-        "qty": data.get("qty", "1 Ea."),
+        "qty": qty_value,
+        "user_entered_qty": user_entered_qty,
         "unit_cost": data.get("unit_cost"),
         "extended": extended,
         "order_index": new_index,
@@ -294,6 +300,9 @@ async def create_item(project_id: str, data: dict) -> dict:
     }
     result = await col.insert_one(doc)
     doc["_id"] = str(result.inserted_id)
+
+    # Mirror into price register dictionary (items collection).
+    await sync_price_item_from_budget(doc)
     return doc
 
 
@@ -333,17 +342,36 @@ async def update_item(item_id: str, updates: dict) -> dict | None:
     if not doc:
         return None
 
+    # Manual qty edit should be tracked in user_entered_qty only.
+    if "qty" in updates:
+        raw_qty = updates.pop("qty")
+        cleaned_qty = str(raw_qty).strip() if raw_qty is not None else ""
+        updates["user_entered_qty"] = cleaned_qty or None
+
+    if "user_entered_qty" in updates:
+        raw_user_qty = updates.get("user_entered_qty")
+        updates["user_entered_qty"] = (
+            str(raw_user_qty).strip() if raw_user_qty is not None else None
+        ) or None
+
     # Merge updates
     for k, v in updates.items():
         if v is not None:
             doc[k] = v
+        elif k == "user_entered_qty":
+            doc[k] = None
 
-    # Recalculate extended
-    doc["extended"] = _calc_extended(doc.get("qty", "1"), doc.get("unit_cost"))
+    # Recalculate extended using effective qty (manual override wins)
+    effective_qty = doc.get("user_entered_qty") or doc.get("qty", "1")
+    doc["extended"] = _calc_extended(str(effective_qty), doc.get("unit_cost"))
     doc["updated_at"] = _now()
 
     await col.replace_one({"_id": ObjectId(item_id)}, doc)
-    return _serialize(doc)
+    doc_serial = _serialize(doc)
+
+    # Mirror into price register dictionary (items collection).
+    await sync_price_item_from_budget(doc_serial)
+    return doc_serial
 
 
 async def delete_item(item_id: str) -> bool:
@@ -505,15 +533,23 @@ async def assign_to_parent(item_id: str, parent_id: str) -> bool:
 
 async def create_preliminary_budget(project_id: str) -> dict:
     """
-    Reads masks_polygons.json for every room belonging to project_id,
-    then creates (or increments qty of) budget items in MongoDB.
+    Reads groups + masks from MongoDB for every room belonging to project_id,
+    then creates/updates/deletes budget items in MongoDB.
+    Database is the single source of truth.
     """
-    import os, json
-    from db.mongo import get_rooms_collection, get_diagrams_collection, get_pages_collection
+    from db.mongo import (
+        get_rooms_collection,
+        get_diagrams_collection,
+        get_pages_collection,
+        get_groups_collection,
+        get_masks_collection,
+    )
 
     rooms_coll = get_rooms_collection()
     diagrams_coll = get_diagrams_collection()
     pages_coll = get_pages_collection()
+    groups_coll = get_groups_collection()
+    masks_coll = get_masks_collection()
     col = _col()
 
     # 1. Fetch rooms — always query BOTH string and ObjectId formats.
@@ -592,47 +628,68 @@ async def create_preliminary_budget(project_id: str) -> dict:
 
     created_count = 0
     updated_count = 0
+    stale_group_deleted_count = 0
     rooms_processed = 0
 
     # 3. Iterate over each included room
     for room in included_rooms:
         room_id = str(room["_id"])
-        masks_url: str = room.get("masks_polygons_url", "")
-        print(f"[BudgetGen] Room {room_id}: masks_polygons_url={masks_url!r}")
+        room_match_values = [room_id]
+        if ObjectId.is_valid(room_id):
+            room_match_values.append(ObjectId(room_id))
 
-        if not masks_url:
-            print(f"[BudgetGen]  -> Skipping: no masks_polygons_url")
+        project_match_values = [project_id]
+        if ObjectId.is_valid(project_id):
+            project_match_values.append(ObjectId(project_id))
+
+        groups_docs = await groups_coll.find({
+            "room": {"$in": room_match_values},
+            "project": {"$in": project_match_values},
+        }).to_list(None)
+
+        masks_docs = await masks_coll.find(
+            {
+                "room": {"$in": room_match_values},
+                "project": {"$in": project_match_values},
+            },
+            {"group_id": 1},
+        ).to_list(None)
+
+        mask_count_by_group: dict[str, int] = {}
+        for m in masks_docs:
+            gid = str(m.get("group_id", "") or "")
+            if not gid:
+                continue
+            mask_count_by_group[gid] = mask_count_by_group.get(gid, 0) + 1
+
+        print(f"[BudgetGen] Room {room_id}: groups={len(groups_docs)} masks={len(masks_docs)}")
+
+        if not groups_docs:
+            print(f"[BudgetGen]  -> Skipping: no groups in DB for this room")
             continue
 
-        # Resolve URL to local filesystem path
-        # masks_url example: /local_file_db/project_.../rooms/.../analysis/masks_polygons.json
-        relative_path = masks_url.lstrip("/")
-        if relative_path.startswith("local_file_db/"):
-            relative_path = relative_path[len("local_file_db/"):]
-        json_path = os.path.join(LOCAL_FILE_DB, relative_path)
-        print(f"[BudgetGen]  -> Resolved path: {json_path}")
-        print(f"[BudgetGen]  -> File exists: {os.path.exists(json_path)}")
+        # Safe cleanup: remove stale system-generated budget items for this room
+        # whose group_id no longer exists in the room's current groups snapshot.
+        current_group_ids = [str(g.get("_id")) for g in groups_docs if g.get("_id")]
+        if current_group_ids:
+            stale_delete_result = await col.delete_many(
+                {
+                    "project": project_id,
+                    "room": {"$in": room_match_values},
+                    "created_by": "system",
+                    "group_id": {
+                        "$exists": True,
+                        "$ne": "",
+                        "$nin": current_group_ids,
+                    },
+                }
+            )
+            stale_group_deleted_count += stale_delete_result.deleted_count
+            if stale_delete_result.deleted_count:
+                print(
+                    f"[BudgetGen]  -> Deleted {stale_delete_result.deleted_count} stale group item(s)"
+                )
 
-        if not os.path.exists(json_path):
-            print(f"[BudgetGen]  -> Skipping: file not found")
-            continue
-
-        try:
-            with open(json_path, "r") as f:
-                data = json.load(f)
-        except Exception as e:
-            print(f"[BudgetGen]  -> Skipping: JSON load error: {e}")
-            continue
-
-        groups: dict = data.get("groups", {})
-        masks: list = data.get("masks", [])
-        if not isinstance(groups, dict):
-            print(f"[BudgetGen]  -> Skipping: invalid groups payload type={type(groups)}")
-            continue
-        if not isinstance(masks, list):
-            print(f"[BudgetGen]  -> Skipping: invalid masks payload type={type(masks)}")
-            continue
-        print(f"[BudgetGen]  -> Loaded JSON: {len(groups)} groups, {len(masks)} masks")
         rooms_processed += 1
 
         # -- Resolve page_id and page_no for this room via the diagram chain --
@@ -657,26 +714,27 @@ async def create_preliminary_budget(project_id: str) -> dict:
         print(f"[BudgetGen]  -> room_name={room_name!r}, page_id={page_id_str!r}, page_no={page_no_val!r}")
 
         # 3. For each group, count masks and upsert budget item
-        for group_key, group in groups.items():
-            if not isinstance(group, dict):
-                print(f"[BudgetGen]    -> Skipping group {group_key}: invalid type={type(group)}")
-                continue
+        for group in groups_docs:
+            group_id_val = str(group.get("_id", ""))
 
             code_raw = group.get("code")
             code: str = str(code_raw or "").strip()
-            print(f"[BudgetGen]    Group {group_key}: code={code!r}")
+            print(f"[BudgetGen]    Group {group_id_val}: code={code!r}")
             if not code:
                 print(f"[BudgetGen]    -> Skipping: empty code")
                 continue
 
-            group_id_val: str = str(group.get("id", group_key))
             group_name: str = str(group.get("name") or "")
             group_desc: str = str(group.get("description") or "")
 
             # Count masks belonging to this group
-            mask_count = sum(1 for m in masks if m.get("group_id") == group_id_val)
+            mask_count = mask_count_by_group.get(group_id_val, 0)
             qty_number = max(mask_count, 1)
-            qty_str = f"{qty_number} Ea."
+            qty_str = str(qty_number)
+            raw_group_user_qty = group.get("user_entered_qty")
+            group_user_qty = (
+                str(raw_group_user_qty).strip() if raw_group_user_qty is not None else ""
+            ) or None
             print(f"[BudgetGen]    -> mask_count={mask_count}, qty_str={qty_str!r}")
 
             # Match on project + spec_no + group_id — the unique key for each group.
@@ -691,20 +749,41 @@ async def create_preliminary_budget(project_id: str) -> dict:
 
             if existing:
                 # OVERRIDE qty with current count from JSON (not increment)
-                new_extended = _calc_extended(qty_str, existing.get("unit_cost"))
+                effective_qty_for_math = group_user_qty or existing.get("user_entered_qty") or qty_str
+                new_extended = _calc_extended(str(effective_qty_for_math), existing.get("unit_cost"))
+                updated_at = _now()
+                updates = {
+                    "qty": qty_str,
+                    "extended": new_extended,
+                    "name": group_name,
+                    "description": group_desc,
+                    "room": room_id,
+                    "page_id": page_id_str,
+                    "page_no": page_no_val,
+                    "updated_at": updated_at,
+                }
+                if group_user_qty is not None:
+                    updates["user_entered_qty"] = group_user_qty
                 await col.update_one(
                     {"_id": existing["_id"]},
-                    {"$set": {
-                        "qty": qty_str,
-                        "extended": new_extended,
-                        "name": group_name,
-                        "description": group_desc,
-                        "room": room_id,
-                        "page_id": page_id_str,
-                        "page_no": page_no_val,
-                        "updated_at": _now(),
-                    }},
+                    {"$set": updates},
                 )
+
+                updated_doc = dict(existing)
+                updated_doc.update({
+                    "qty": qty_str,
+                    "extended": new_extended,
+                    "name": group_name,
+                    "description": group_desc,
+                    "room": room_id,
+                    "page_id": page_id_str,
+                    "page_no": page_no_val,
+                    "updated_at": updated_at,
+                })
+                if group_user_qty is not None:
+                    updated_doc["user_entered_qty"] = group_user_qty
+                await sync_price_item_from_budget(updated_doc)
+
                 updated_count += 1
                 print(f"[BudgetGen]    -> SYNCED qty to {qty_str!r}, room={room_name!r} ({room_id}), page_no={page_no_val!r}")
 
@@ -721,6 +800,7 @@ async def create_preliminary_budget(project_id: str) -> dict:
                     "page_id": page_id_str,  # MongoDB _id of the page
                     "page_no": page_no_val,  # page number (int)
                     "qty": qty_str,
+                    "user_entered_qty": group_user_qty,
                     "unit_cost": None,
                     "extended": None,
                     "order_index": new_index,
@@ -732,18 +812,22 @@ async def create_preliminary_budget(project_id: str) -> dict:
                     "updated_at": now,
                 }
                 result = await col.insert_one(new_doc)
+                new_doc["_id"] = str(result.inserted_id)
+                await sync_price_item_from_budget(new_doc)
                 created_count += 1
                 print(
                     f"[BudgetGen]    -> CREATED _id={result.inserted_id}, room={room_name!r} ({room_id}), page_no={page_no_val!r}")
 
     summary = (f"Budget generation complete. {created_count} items created, "
                f"{updated_count} items updated across {rooms_processed} rooms. "
-               f"Deleted {deleted_count} items from excluded rooms.")
+               f"Deleted {deleted_count} items from excluded rooms and "
+               f"{stale_group_deleted_count} stale group items.")
     print(f"[BudgetGen] Done: {summary}")
     return {
         "created": created_count,
         "updated": updated_count,
         "deleted": deleted_count,
+        "stale_group_deleted": stale_group_deleted_count,
         "rooms_processed": rooms_processed,
         "message": summary,
     }

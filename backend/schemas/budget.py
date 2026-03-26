@@ -21,7 +21,8 @@ class BudgetItemCreate(BaseModel):
     project: str = ""
     page_no: Optional[int] = None
     page_id: str = ""
-    qty: str = "1 Ea."
+    qty: str = "1"
+    user_entered_qty: Optional[str] = None
     unit_cost: Optional[float] = None
     group_id: str = ""  # Linked from front-end mask groups
     insert_relative_to: Optional[str] = None  # _id string of neighbour
@@ -40,6 +41,7 @@ class BudgetItemUpdate(BaseModel):
     page_no: Optional[int] = None
     page_id: Optional[str] = None
     qty: Optional[str] = None
+    user_entered_qty: Optional[str] = None
     unit_cost: Optional[float] = None
     hidden_from_total: Optional[bool] = None
     is_sub_item: Optional[bool] = None
@@ -57,6 +59,7 @@ class BudgetItemOut(BaseModel):
     group_id: str = ""
     page_no: Optional[int] = None
     qty: str = ""
+    user_entered_qty: Optional[str] = None
     unit_cost: Optional[float] = None
     extended: Optional[float] = None
     order_index: int = 0

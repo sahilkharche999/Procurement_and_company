@@ -19,8 +19,8 @@ router = APIRouter(prefix="/budget", tags=["Budget"])
 async def create_budget(project_id: str):
     """
     Generates preliminary budget items for the given project by reading
-    masks_polygons.json from every room associated with the project.
-    Items are created fresh or have their qty incremented if spec_no already exists.
+    room groups + masks from MongoDB (DB is source of truth).
+    Items are created or synchronized with latest counts.
     """
     result = await svc.create_preliminary_budget(project_id)
     return result

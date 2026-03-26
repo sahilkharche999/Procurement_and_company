@@ -51,3 +51,11 @@ def get_processing_jobs_collection():
 
 def get_groups_collection():
     return get_db()["groups"]
+
+
+def get_masks_collection():
+    return get_db()["masks"]
+
+
+def get_items_collection():
+    return get_db()["items"]

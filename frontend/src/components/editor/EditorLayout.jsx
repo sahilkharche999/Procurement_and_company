@@ -13,6 +13,7 @@ import { buildServerUrl } from "../../config";
 export default function EditorLayout() {
   const { roomId } = useParams();
   const [bgImageUrl, setBgImageUrl] = useState(null);
+  const [projectId, setProjectId] = useState("");
   const [roomIncludedInBudget, setRoomIncludedInBudget] = useState(false);
   const [roomIncludeLoading, setRoomIncludeLoading] = useState(false);
 
@@ -51,6 +52,8 @@ export default function EditorLayout() {
         const res = await fetch(buildServerUrl(`/rooms/${roomId}`));
         if (!res.ok) throw new Error("Failed to fetch room");
         const roomData = await res.json();
+        const projectIdFromRoom = String(roomData.project || "");
+        setProjectId(projectIdFromRoom);
 
         setRoomIncludedInBudget(!!roomData.is_included_in_budget);
 
@@ -58,9 +61,9 @@ export default function EditorLayout() {
           setBgImageUrl(buildServerUrl(roomData.room_image_url));
         }
 
-        if (roomData.masks_polygons_url) {
+        if (projectIdFromRoom) {
           const masksRes = await fetch(
-            `${buildServerUrl(roomData.masks_polygons_url)}?t=${Date.now()}`,
+            `${buildServerUrl(`/projects/${projectIdFromRoom}/rooms/${roomId}/editor-state`)}?t=${Date.now()}`,
             { cache: "no-store" },
           );
           if (masksRes.ok) {
@@ -138,6 +141,7 @@ export default function EditorLayout() {
       id,
       name: raw.name || "",
       code: raw.code || "",
+      user_entered_qty: raw.user_entered_qty ?? null,
       color: Array.isArray(raw.color) ? raw.color : [141, 106, 59],
       type: raw.type || "FF&E",
       room: raw.room || roomId || "",
@@ -150,6 +154,7 @@ export default function EditorLayout() {
     const payload = {
       name: group.name || "",
       code: group.code || "",
+      user_entered_qty: group.user_entered_qty ?? null,
       color: Array.isArray(group.color) ? group.color : [141, 106, 59],
       type: group.type || "FF&E",
       room: roomId,
@@ -167,6 +172,7 @@ export default function EditorLayout() {
     const payload = {
       name: group.name || "",
       code: group.code || "",
+      user_entered_qty: group.user_entered_qty ?? null,
       color: Array.isArray(group.color) ? group.color : [141, 106, 59],
       type: group.type || "FF&E",
     };
@@ -217,12 +223,24 @@ export default function EditorLayout() {
   const handlePersist = useCallback(async () => {
     try {
       setSaveStatus("Saving to backend...");
-      const res = await fetch(buildServerUrl(`/rooms/${roomId}/masks`), {
+      if (!projectId) throw new Error("Missing project context for room");
+
+      const res = await fetch(
+        buildServerUrl(`/projects/${projectId}/rooms/${roomId}/editor-state`),
+        {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ masks, groups }),
-      });
+        },
+      );
       if (!res.ok) throw new Error("Failed to persist");
+
+      const persisted = await res.json();
+      if (persisted?.groups && persisted?.masks) {
+        setGroups(persisted.groups);
+        setMasks(persisted.masks);
+      }
+
       setSaveStatus("Persisted to database");
       setTimeout(() => setSaveStatus(null), 2000);
     } catch (err) {
@@ -230,15 +248,16 @@ export default function EditorLayout() {
       setSaveStatus("Error saving to database");
       setTimeout(() => setSaveStatus(null), 2500);
     }
-  }, [roomId, masks, groups]);
+  }, [roomId, projectId, masks, groups]);
 
   const handleToggleRoomIncludedInBudget = useCallback(
     async (nextValue) => {
       if (!roomId) return;
+      if (!projectId) return;
       try {
         setRoomIncludeLoading(true);
         const res = await fetch(
-          buildServerUrl(`/rooms/${roomId}/include-in-budget`),
+          buildServerUrl(`/projects/${projectId}/rooms/${roomId}/budget-inclusion`),
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -254,7 +273,7 @@ export default function EditorLayout() {
         setRoomIncludeLoading(false);
       }
     },
-    [roomId],
+    [roomId, projectId],
   );
 
   const moveSelectedMasksBy = useCallback(

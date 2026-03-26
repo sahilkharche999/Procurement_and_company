@@ -31,6 +31,14 @@ export function SubItemRow({
   onDetach,
   colSpanTotal = 10,
 }) {
+  const toDisplayQty = (qty) => {
+    if (qty === null || qty === undefined || qty === "") return "-";
+    const match = String(qty).match(/^[\s]*([0-9]+(?:\.[0-9]*)?)/);
+    if (!match) return String(qty);
+    const n = Number(match[1]);
+    return Number.isInteger(n) ? String(n) : String(n);
+  };
+
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -39,7 +47,7 @@ export function SubItemRow({
   const [draft, setDraft] = useState({
     spec_no: subitem.spec_no || "",
     description: subitem.description || "",
-    qty: subitem.qty || "1 Ea.",
+    qty: subitem.qty || "1",
     unit_cost: subitem.unit_cost ?? "",
   });
 
@@ -56,6 +64,11 @@ export function SubItemRow({
       ...draft,
       unit_cost: draft.unit_cost !== "" ? Number(draft.unit_cost) : null,
     };
+
+    if (String(draft.qty ?? "") === String(subitem.qty ?? "")) {
+      delete data.qty;
+    }
+
     await onUpdate(subitem._id, data);
     setSaving(false);
     setEditing(false);
@@ -122,9 +135,15 @@ export function SubItemRow({
       {/* Qty */}
       <TableCell className={cellCls}>
         {editing ? (
-          <input {...field("qty")} placeholder="Qty" style={{ width: 70 }} />
+          <input
+            {...field("qty")}
+            placeholder="Qty"
+            type="number"
+            step="0.01"
+            style={{ width: 70 }}
+          />
         ) : (
-          <span>{subitem.qty}</span>
+          <span>{toDisplayQty(subitem.qty)}</span>
         )}
       </TableCell>
 

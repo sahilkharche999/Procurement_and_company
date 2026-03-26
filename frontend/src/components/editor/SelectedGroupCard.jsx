@@ -22,6 +22,9 @@ export default function SelectedGroupCard({
   const [isOpen, setIsOpen] = useState(false); // mask dropdown
   const [editName, setEditName] = useState(group.name);
   const [editCode, setEditCode] = useState(group.code || "");
+  const [editUserEnteredQty, setEditUserEnteredQty] = useState(
+    group.user_entered_qty || "",
+  );
   const [editColor, setEditColor] = useState(rgbToHex(group.color));
   const [editType, setEditType] = useState(group.type || "FF&E");
   const [isDirty, setIsDirty] = useState(false);
@@ -31,6 +34,7 @@ export default function SelectedGroupCard({
   useEffect(() => {
     setEditName(group.name);
     setEditCode(group.code || "");
+    setEditUserEnteredQty(group.user_entered_qty || "");
     setEditColor(rgbToHex(group.color));
     setEditType(group.type || "FF&E");
     setIsDirty(false);
@@ -65,6 +69,11 @@ export default function SelectedGroupCard({
     setIsDirty(true);
   };
 
+  const handleUserEnteredQtyChange = (e) => {
+    setEditUserEnteredQty(e.target.value);
+    setIsDirty(true);
+  };
+
   // ── Save ────────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!editName.trim()) return;
@@ -72,6 +81,7 @@ export default function SelectedGroupCard({
       ...group,
       name: editName.trim(),
       code: editCode.trim(),
+      user_entered_qty: editUserEnteredQty.trim() || null,
       color: hexToRgb(editColor),
       type: editType,
     });
@@ -82,6 +92,7 @@ export default function SelectedGroupCard({
   const handleCancel = () => {
     setEditName(group.name);
     setEditCode(group.code || "");
+    setEditUserEnteredQty(group.user_entered_qty || "");
     setEditColor(rgbToHex(group.color));
     setEditType(group.type || "FF&E");
     setIsDirty(false);
@@ -101,7 +112,7 @@ export default function SelectedGroupCard({
         <button
           onClick={() => colorInputRef.current?.click()}
           title="Change colour"
-          className="w-4 h-4 flex-shrink-0 ring-1 ring-black/15 hover:scale-125 transition-transform"
+          className="w-4 h-4 shrink-0 ring-1 ring-black/15 hover:scale-125 transition-transform"
           style={colorStyle}
         />
         {/* Hidden native color input */}
@@ -161,6 +172,19 @@ export default function SelectedGroupCard({
           </select>
         </div>
 
+        {/* User Entered Qty */}
+        <div className="space-y-0.5">
+          <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+            User Entered Qty
+          </label>
+          <input
+            value={editUserEnteredQty}
+            onChange={handleUserEnteredQtyChange}
+            placeholder="Quantity override"
+            className="w-full text-xs px-2 py-1 border border-gray-200 bg-white font-mono focus:outline-none focus:border-blue-400 transition-colors"
+          />
+        </div>
+
         {/* Colour preview row */}
         <div className="space-y-0.5">
           <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
@@ -171,7 +195,7 @@ export default function SelectedGroupCard({
             className="flex items-center gap-2 w-full px-2 py-1 border border-gray-200 bg-white text-left hover:border-blue-400 transition-colors"
           >
             <span
-              className="inline-block w-3.5 h-3.5 flex-shrink-0 ring-1 ring-black/10"
+              className="inline-block w-3.5 h-3.5 shrink-0 ring-1 ring-black/10"
               style={{ backgroundColor: editColor }}
             />
             <span className="text-xs font-mono text-gray-600">
@@ -263,7 +287,7 @@ export default function SelectedGroupCard({
                     {/* Selection indicator */}
                     <span
                       className={cn(
-                        "inline-block w-1.5 h-1.5 flex-shrink-0",
+                        "inline-block w-1.5 h-1.5 shrink-0",
                         isSelected
                           ? "bg-red-500"
                           : "bg-transparent border border-gray-300",

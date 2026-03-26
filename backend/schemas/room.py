@@ -12,6 +12,8 @@ class RoomBase(BaseModel):
     notes: str = ""
     created_by: str = "user"
     is_included_in_budget: bool = False
+    image_width: int = 0
+    image_height: int = 0
 
 
 class RoomCreate(RoomBase):

@@ -19,6 +19,9 @@ from routes.floorplan import router as floorplan_router
 from routes.projects import router as mongo_projects_router
 from routes.rooms import router as rooms_router
 from routes.groups import router as groups_router
+from routes.masks import router as masks_router
+from routes.room_editor import router as room_editor_router
+from routes.items import router as items_router
 
 
 @asynccontextmanager
@@ -63,6 +66,9 @@ app.include_router(floorplan_router)
 app.include_router(mongo_projects_router)
 app.include_router(rooms_router)
 app.include_router(groups_router)
+app.include_router(masks_router)
+app.include_router(room_editor_router)
+app.include_router(items_router)
 
 
 @app.get("/health")

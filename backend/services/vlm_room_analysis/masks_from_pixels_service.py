@@ -78,6 +78,40 @@ def _persist_group_in_mongo(group_payload, room_id=None, project_id=None):
             client.close()
 
 
+def _persist_mask_in_mongo(mask_payload):
+    """
+    Create canonical mask in MongoDB and return inserted _id as string.
+    """
+    client = None
+    try:
+        client = MongoClient(MONGO_URI)
+        db = client[MONGO_DB_NAME]
+        masks_coll = db["masks"]
+
+        doc = {
+            "name": mask_payload.get("name", ""),
+            "code": mask_payload.get("code", ""),
+            "description": mask_payload.get("description", ""),
+            "color": mask_payload.get("color", [141, 106, 59]),
+            "type": mask_payload.get("type", "FF&E"),
+            "room": str(mask_payload.get("room", "")),
+            "project": str(mask_payload.get("project", "")),
+            "group_id": str(mask_payload.get("group_id", "")),
+            "polygons": mask_payload.get("polygons", []),
+            "source": mask_payload.get("source", "system"),
+            "mask_type": mask_payload.get("mask_type", "label"),
+        }
+
+        result = masks_coll.insert_one(doc)
+        return str(result.inserted_id)
+    except Exception as exc:
+        print(f"[masks_from_pixels_service] Failed to persist mask in MongoDB: {exc}")
+        return None
+    finally:
+        if client:
+            client.close()
+
+
 def square_polygon_from_center(center_x, center_y, box_size=20):
     """
     Build square polygon around a center point.
@@ -214,8 +248,23 @@ def generate_masks_polygons_from_pixels_json(
             )
 
             mask_counter += 1
+            mask_payload = {
+                "name": group_payload["name"],
+                "code": group_payload["code"],
+                "description": group_payload["description"],
+                "color": group_payload["color"],
+                "type": group_payload["type"],
+                "room": str(room_id or ""),
+                "project": str(project_id or ""),
+                "group_id": group_id,
+                "polygons": [polygon],
+                "source": "system",
+                "mask_type": "label",
+            }
+            mongo_mask_id = _persist_mask_in_mongo(mask_payload)
+
             mask_obj = {
-                "id": _make_mask_id(mask_counter),
+                "id": mongo_mask_id or _make_mask_id(mask_counter),
                 "group_id": group_id,
                 "project_id": project_id,
                 "polygons": [polygon],

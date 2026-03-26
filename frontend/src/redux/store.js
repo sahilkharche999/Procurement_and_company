@@ -4,6 +4,7 @@ import pdfReducer from './slices/pdfSlice'
 import uiReducer from './slices/uiSlice'
 import floorplanReducer from './slices/floorplanSlice'
 import projectReducer from './slices/projectSlice'
+import itemsReducer from './slices/itemsSlice'
 
 const store = configureStore({
     reducer: {
@@ -12,6 +13,7 @@ const store = configureStore({
         ui: uiReducer,
         floorplan: floorplanReducer,
         projects: projectReducer,
+        items: itemsReducer,
     },
     middleware: (getDefaultMiddleware) =>
         getDefaultMiddleware({
