@@ -141,6 +141,7 @@ export default function EditorLayout() {
       id,
       name: raw.name || "",
       code: raw.code || "",
+      user_entered_qty: raw.user_entered_qty ?? null,
       color: Array.isArray(raw.color) ? raw.color : [141, 106, 59],
       type: raw.type || "FF&E",
       room: raw.room || roomId || "",
@@ -153,6 +154,7 @@ export default function EditorLayout() {
     const payload = {
       name: group.name || "",
       code: group.code || "",
+      user_entered_qty: group.user_entered_qty ?? null,
       color: Array.isArray(group.color) ? group.color : [141, 106, 59],
       type: group.type || "FF&E",
       room: roomId,
@@ -170,6 +172,7 @@ export default function EditorLayout() {
     const payload = {
       name: group.name || "",
       code: group.code || "",
+      user_entered_qty: group.user_entered_qty ?? null,
       color: Array.isArray(group.color) ? group.color : [141, 106, 59],
       type: group.type || "FF&E",
     };

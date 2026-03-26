@@ -270,7 +270,12 @@ async def create_item(project_id: str, data: dict) -> dict:
     else:
         new_index = await _max_order(project_id) + 1
 
-    extended = _calc_extended(data.get("qty", "1"), data.get("unit_cost"))
+    qty_value = str(data.get("qty", "1") or "1")
+    user_entered_qty = data.get("user_entered_qty")
+    if user_entered_qty is not None:
+        user_entered_qty = str(user_entered_qty).strip() or None
+    effective_qty = user_entered_qty or qty_value
+    extended = _calc_extended(effective_qty, data.get("unit_cost"))
     now = _now()
     doc = {
         "project": project_id,
@@ -281,7 +286,8 @@ async def create_item(project_id: str, data: dict) -> dict:
         "description": data.get("description", ""),
         "group_id": data.get("group_id", ""),
         "page_no": data.get("page_no"),
-        "qty": data.get("qty", "1 Ea."),
+        "qty": qty_value,
+        "user_entered_qty": user_entered_qty,
         "unit_cost": data.get("unit_cost"),
         "extended": extended,
         "order_index": new_index,
@@ -336,13 +342,28 @@ async def update_item(item_id: str, updates: dict) -> dict | None:
     if not doc:
         return None
 
+    # Manual qty edit should be tracked in user_entered_qty only.
+    if "qty" in updates:
+        raw_qty = updates.pop("qty")
+        cleaned_qty = str(raw_qty).strip() if raw_qty is not None else ""
+        updates["user_entered_qty"] = cleaned_qty or None
+
+    if "user_entered_qty" in updates:
+        raw_user_qty = updates.get("user_entered_qty")
+        updates["user_entered_qty"] = (
+            str(raw_user_qty).strip() if raw_user_qty is not None else None
+        ) or None
+
     # Merge updates
     for k, v in updates.items():
         if v is not None:
             doc[k] = v
+        elif k == "user_entered_qty":
+            doc[k] = None
 
-    # Recalculate extended
-    doc["extended"] = _calc_extended(doc.get("qty", "1"), doc.get("unit_cost"))
+    # Recalculate extended using effective qty (manual override wins)
+    effective_qty = doc.get("user_entered_qty") or doc.get("qty", "1")
+    doc["extended"] = _calc_extended(str(effective_qty), doc.get("unit_cost"))
     doc["updated_at"] = _now()
 
     await col.replace_one({"_id": ObjectId(item_id)}, doc)
@@ -709,7 +730,11 @@ async def create_preliminary_budget(project_id: str) -> dict:
             # Count masks belonging to this group
             mask_count = mask_count_by_group.get(group_id_val, 0)
             qty_number = max(mask_count, 1)
-            qty_str = f"{qty_number} Ea."
+            qty_str = str(qty_number)
+            raw_group_user_qty = group.get("user_entered_qty")
+            group_user_qty = (
+                str(raw_group_user_qty).strip() if raw_group_user_qty is not None else ""
+            ) or None
             print(f"[BudgetGen]    -> mask_count={mask_count}, qty_str={qty_str!r}")
 
             # Match on project + spec_no + group_id — the unique key for each group.
@@ -724,20 +749,24 @@ async def create_preliminary_budget(project_id: str) -> dict:
 
             if existing:
                 # OVERRIDE qty with current count from JSON (not increment)
-                new_extended = _calc_extended(qty_str, existing.get("unit_cost"))
+                effective_qty_for_math = group_user_qty or existing.get("user_entered_qty") or qty_str
+                new_extended = _calc_extended(str(effective_qty_for_math), existing.get("unit_cost"))
                 updated_at = _now()
+                updates = {
+                    "qty": qty_str,
+                    "extended": new_extended,
+                    "name": group_name,
+                    "description": group_desc,
+                    "room": room_id,
+                    "page_id": page_id_str,
+                    "page_no": page_no_val,
+                    "updated_at": updated_at,
+                }
+                if group_user_qty is not None:
+                    updates["user_entered_qty"] = group_user_qty
                 await col.update_one(
                     {"_id": existing["_id"]},
-                    {"$set": {
-                        "qty": qty_str,
-                        "extended": new_extended,
-                        "name": group_name,
-                        "description": group_desc,
-                        "room": room_id,
-                        "page_id": page_id_str,
-                        "page_no": page_no_val,
-                        "updated_at": updated_at,
-                    }},
+                    {"$set": updates},
                 )
 
                 updated_doc = dict(existing)
@@ -751,6 +780,8 @@ async def create_preliminary_budget(project_id: str) -> dict:
                     "page_no": page_no_val,
                     "updated_at": updated_at,
                 })
+                if group_user_qty is not None:
+                    updated_doc["user_entered_qty"] = group_user_qty
                 await sync_price_item_from_budget(updated_doc)
 
                 updated_count += 1
@@ -769,6 +800,7 @@ async def create_preliminary_budget(project_id: str) -> dict:
                     "page_id": page_id_str,  # MongoDB _id of the page
                     "page_no": page_no_val,  # page number (int)
                     "qty": qty_str,
+                    "user_entered_qty": group_user_qty,
                     "unit_cost": None,
                     "extended": None,
                     "order_index": new_index,

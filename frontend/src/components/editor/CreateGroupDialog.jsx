@@ -35,6 +35,7 @@ const PRESETS = [
 export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [userEnteredQty, setUserEnteredQty] = useState("");
   const [color, setColor] = useState("#3b82f6");
   const [type, setType] = useState("FF&E");
   const [error, setError] = useState("");
@@ -42,6 +43,7 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
   const reset = () => {
     setName("");
     setCode("");
+    setUserEnteredQty("");
     setColor("#3b82f6");
     setType("FF&E");
     setError("");
@@ -65,6 +67,7 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
     const created = await onGroupCreated({
       name: name.trim(),
       code: code.trim(),
+      user_entered_qty: userEnteredQty.trim() || null,
       color: hexToRgb(color),
       type,
     });
@@ -140,6 +143,19 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
             </select>
           </div>
 
+          {/* User Entered Qty */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+              User Entered Qty
+            </Label>
+            <Input
+              placeholder="e.g. 12"
+              value={userEnteredQty}
+              onChange={(e) => setUserEnteredQty(e.target.value)}
+              className="rounded-none h-9 text-sm focus-visible:ring-1 focus-visible:ring-blue-500"
+            />
+          </div>
+
           {/* Colour picker */}
           <div className="space-y-2">
             <Label className="text-xs font-medium text-gray-600 uppercase tracking-wider">
@@ -169,7 +185,7 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
             {/* Native colour input + hex preview */}
             <div className="flex items-center gap-3 mt-1">
               <div
-                className="w-9 h-9 border border-gray-200 shadow-inner flex-shrink-0"
+                className="w-9 h-9 border border-gray-200 shadow-inner shrink-0"
                 style={{ backgroundColor: color }}
               />
               <div className="relative flex-1">

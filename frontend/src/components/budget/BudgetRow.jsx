@@ -21,15 +21,24 @@ import {
 import { DeleteRowDialog } from "./DeleteRowDialog";
 import { SubItemRow } from "./SubItemRow";
 import { AssignParentDialog } from "./AssignParentDialog";
+import { cn } from "../../lib/utils";
 import { formatCurrency } from "../../lib/utils";
 import { Input } from "../ui/input";
 import { Badge } from "../ui/badge";
 
-/** Extract leading number from qty strings like "1 Ea.", "2.5 pcs", "3" */
+/** Extract leading number from qty strings like "1", "2.5", "1 Ea." */
 function parseQtyNumber(qty) {
   if (!qty) return 1;
   const match = String(qty).match(/^[\s]*([0-9]+(?:\.[0-9]*)?)/);
   return match ? parseFloat(match[1]) : 1;
+}
+
+function formatQtyDisplay(qty) {
+  if (qty === null || qty === undefined || qty === "") return "-";
+  const match = String(qty).match(/^[\s]*([0-9]+(?:\.[0-9]*)?)/);
+  if (!match) return String(qty);
+  const n = Number(match[1]);
+  return Number.isInteger(n) ? String(n) : String(n);
 }
 
 export function BudgetRow({
@@ -53,11 +62,12 @@ export function BudgetRow({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [subExpanded, setSubExpanded] = useState(false);
+  const [qtyEdited, setQtyEdited] = useState(false);
   const [addingSubItem, setAddingSubItem] = useState(false);
   const [newSub, setNewSub] = useState({
     spec_no: "",
     description: "",
-    qty: "1 Ea.",
+    qty: "1",
     unit_cost: "",
   });
 
@@ -67,6 +77,7 @@ export function BudgetRow({
   // Reset local state when item prop changes or editing mode changes
   useEffect(() => {
     setLocalItem({ ...item });
+    setQtyEdited(false);
   }, [item, isEditing]);
 
   // Auto-expand when subitems exist
@@ -77,7 +88,17 @@ export function BudgetRow({
   const handleChange = (field, value) => {
     setLocalItem((prev) => {
       const updated = { ...prev, [field]: value };
-      const qtyNum = parseQtyNumber(field === "qty" ? value : updated.qty);
+      if (field === "qty") {
+        setQtyEdited(true);
+        updated.user_entered_qty = value;
+      }
+
+      const activeQtyForMath =
+        field === "qty"
+          ? value
+          : (updated.user_entered_qty ?? updated.qty);
+      const qtyNum = parseQtyNumber(activeQtyForMath);
+
       if (field === "unit_cost" || field === "qty") {
         const unitCost =
           field === "unit_cost"
@@ -94,7 +115,20 @@ export function BudgetRow({
   };
 
   const handleSave = () => {
-    onSave(item._id, localItem);
+    const payload = { ...localItem };
+
+    if (qtyEdited) {
+      payload.qty =
+        localItem.user_entered_qty !== undefined &&
+        localItem.user_entered_qty !== null
+          ? String(localItem.user_entered_qty)
+          : String(localItem.qty ?? "");
+    } else {
+      delete payload.qty;
+      delete payload.user_entered_qty;
+    }
+
+    onSave(item._id, payload);
   };
 
   const handleKeyDown = (e) => {
@@ -109,12 +143,17 @@ export function BudgetRow({
       unit_cost: newSub.unit_cost !== "" ? Number(newSub.unit_cost) : null,
       created_by: "user",
     });
-    setNewSub({ spec_no: "", description: "", qty: "1 Ea.", unit_cost: "" });
+    setNewSub({ spec_no: "", description: "", qty: "1", unit_cost: "" });
     setAddingSubItem(false);
     setSubExpanded(true);
   };
 
   const isHidden = item.hidden_from_total;
+  const hasUserEnteredQty =
+    item.user_entered_qty !== undefined &&
+    item.user_entered_qty !== null &&
+    String(item.user_entered_qty).trim() !== "";
+  const effectiveQty = hasUserEnteredQty ? item.user_entered_qty : item.qty;
 
   return (
     <>
@@ -227,13 +266,28 @@ export function BudgetRow({
         <td className="p-2 align-middle w-[80px]">
           {isEditing ? (
             <Input
-              value={localItem.qty || ""}
+              type="number"
+              step="0.01"
+              value={localItem.user_entered_qty ?? localItem.qty ?? ""}
               onChange={(e) => handleChange("qty", e.target.value)}
               onKeyDown={handleKeyDown}
               className="h-8"
             />
           ) : (
-            item.qty
+            <div className="flex items-center gap-1.5">
+              <span
+                className={cn(
+                  "inline-block h-2 w-2 rounded-full",
+                  hasUserEnteredQty ? "bg-yellow-400" : "bg-emerald-500",
+                )}
+                title={
+                  hasUserEnteredQty
+                    ? "User-entered quantity"
+                    : "Auto quantity from masks"
+                }
+              />
+              <span>{formatQtyDisplay(effectiveQty)}</span>
+            </div>
           )}
         </td>
 
@@ -398,6 +452,8 @@ export function BudgetRow({
             <div className="flex gap-1">
               <Input
                 placeholder="Qty"
+                type="number"
+                step="0.01"
                 value={newSub.qty}
                 onChange={(e) =>
                   setNewSub((s) => ({ ...s, qty: e.target.value }))

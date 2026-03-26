@@ -4,7 +4,7 @@ Pydantic models for canonical groups collection.
 """
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -14,6 +14,7 @@ class GroupBase(BaseModel):
     code: str = ""
     color: list[int] = [141, 106, 59]
     type: Literal["FF&E", "OFCI"] = "FF&E"
+    user_entered_qty: Optional[str] = None
     room: str = ""
     project: str = ""
 
@@ -36,6 +37,7 @@ class GroupUpdate(BaseModel):
     code: str | None = None
     color: list[int] | None = None
     type: Literal["FF&E", "OFCI"] | None = None
+    user_entered_qty: Optional[str] = None
 
     @field_validator("color")
     @classmethod

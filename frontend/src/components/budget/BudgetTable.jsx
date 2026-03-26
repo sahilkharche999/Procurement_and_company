@@ -149,7 +149,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
     const newItem = {
       spec_no: "New Item",
       description: "",
-      qty: "1 Ea.",
+      qty: "1",
       unit_cost: 0,
       created_by: "user",
     };
