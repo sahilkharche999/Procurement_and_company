@@ -1,7 +1,7 @@
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Query
 
-from db.mongo import get_groups_collection, get_rooms_collection
+from db.mongo import get_groups_collection, get_masks_collection, get_rooms_collection
 from schemas.group import GroupCreate, GroupUpdate
 
 
@@ -111,8 +111,17 @@ async def update_group(group_id: str, body: GroupUpdate):
 
 @router.delete("/{group_id}")
 async def delete_group(group_id: str):
-    coll = get_groups_collection()
-    result = await coll.delete_one({"_id": _as_obj_id(group_id)})
+    groups_coll = get_groups_collection()
+    masks_coll = get_masks_collection()
+
+    result = await groups_coll.delete_one({"_id": _as_obj_id(group_id)})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Group not found")
-    return {"ok": True}
+
+    # Cascade-delete masks linked to this group.
+    # group_id is persisted as string in editor state, so we delete by string id.
+    masks_delete_result = await masks_coll.delete_many(
+        {"group_id": {"$in": [group_id, _as_obj_id(group_id)]}}
+    )
+
+    return {"ok": True, "deleted_masks": masks_delete_result.deleted_count}

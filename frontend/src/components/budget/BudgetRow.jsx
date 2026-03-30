@@ -221,6 +221,22 @@ export function BudgetRow({
           )}
         </td>
 
+        {/* Type */}
+        <td className="p-2 align-middle w-24">
+          {isEditing ? (
+            <Input
+              value={localItem.type || "FF&E"}
+              onChange={(e) => handleChange("type", e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="h-8"
+            />
+          ) : (
+            <Badge variant="outline" className="text-xs">
+              {item.type || "FF&E"}
+            </Badge>
+          )}
+        </td>
+
         {/* Room */}
         <td className="p-2 align-middle w-[120px]">
           {isEditing ? (
@@ -448,7 +464,7 @@ export function BudgetRow({
               />
             </div>
           </td>
-          <td className="p-2 align-middle" colSpan={3}>
+          <td className="p-2 align-middle" colSpan={4}>
             <div className="flex gap-1">
               <Input
                 placeholder="Qty"

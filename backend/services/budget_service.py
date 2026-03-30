@@ -285,6 +285,7 @@ async def create_item(project_id: str, data: dict) -> dict:
         "name": data.get("name", ""),
         "description": data.get("description", ""),
         "group_id": data.get("group_id", ""),
+        "type": data.get("type", "FF&E"),
         "page_no": data.get("page_no"),
         "qty": qty_value,
         "user_entered_qty": user_entered_qty,
@@ -726,6 +727,7 @@ async def create_preliminary_budget(project_id: str) -> dict:
 
             group_name: str = str(group.get("name") or "")
             group_desc: str = str(group.get("description") or "")
+            group_type: str = str(group.get("type") or "FF&E")
 
             # Count masks belonging to this group
             mask_count = mask_count_by_group.get(group_id_val, 0)
@@ -757,6 +759,7 @@ async def create_preliminary_budget(project_id: str) -> dict:
                     "extended": new_extended,
                     "name": group_name,
                     "description": group_desc,
+                    "type": group_type,
                     "room": room_id,
                     "page_id": page_id_str,
                     "page_no": page_no_val,
@@ -775,6 +778,7 @@ async def create_preliminary_budget(project_id: str) -> dict:
                     "extended": new_extended,
                     "name": group_name,
                     "description": group_desc,
+                    "type": group_type,
                     "room": room_id,
                     "page_id": page_id_str,
                     "page_no": page_no_val,
@@ -796,6 +800,7 @@ async def create_preliminary_budget(project_id: str) -> dict:
                     "name": group_name,
                     "description": group_desc,
                     "group_id": group_id_val,
+                    "type": group_type,
                     "room": room_id,  # canonical room id
                     "page_id": page_id_str,  # MongoDB _id of the page
                     "page_no": page_no_val,  # page number (int)

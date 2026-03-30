@@ -149,6 +149,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
     const newItem = {
       spec_no: "New Item",
       description: "",
+      type: "FF&E",
       qty: "1",
       unit_cost: 0,
       created_by: "user",
@@ -520,6 +521,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
             <TableRow>
               <TableHead className="w-[100px]">Spec No</TableHead>
               <TableHead className="max-w-[200px]">Description</TableHead>
+              <TableHead className="w-24">Type</TableHead>
               <TableHead className="w-[120px]">Room</TableHead>
               <TableHead className="w-[60px] text-center">Page</TableHead>
               <TableHead className="w-[80px]">Qty</TableHead>
@@ -531,7 +533,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
           <TableBody>
             {items.length === 0 && !loading && (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
+                <TableCell colSpan={9} className="h-24 text-center">
                   No budget items found.
                 </TableCell>
               </TableRow>

@@ -25,6 +25,7 @@ class BudgetItemCreate(BaseModel):
     user_entered_qty: Optional[str] = None
     unit_cost: Optional[float] = None
     group_id: str = ""  # Linked from front-end mask groups
+    type: str = "FF&E"  # Inherited from group type (e.g. FF&E, OFCI)
     insert_relative_to: Optional[str] = None  # _id string of neighbour
     position: str = "below"  # "above" | "below"
     is_sub_item: bool = False
@@ -36,6 +37,7 @@ class BudgetItemUpdate(BaseModel):
     description: Optional[str] = None
     name: Optional[str] = None
     group_id: Optional[str] = None
+    type: Optional[str] = None
     room: Optional[str] = None
     project: Optional[str] = None
     page_no: Optional[int] = None
@@ -57,6 +59,7 @@ class BudgetItemOut(BaseModel):
     description: str = ""
     name: str = ""
     group_id: str = ""
+    type: str = "FF&E"
     page_no: Optional[int] = None
     qty: str = ""
     user_entered_qty: Optional[str] = None

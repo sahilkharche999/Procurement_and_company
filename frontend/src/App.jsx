@@ -6,7 +6,7 @@ import { MainLayout } from "./components/layout/MainLayout";
 // Pages — organised by domain
 import { DashboardPage } from "./pages/dashboard/DashboardPage";
 import { BudgetPage } from "./pages/budget/BudgetPage";
-import { ProcurementPage } from "./pages/procurement/ProcurementPage";
+
 import { VendorsPage } from "./pages/vendors/VendorsPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { FloorPlanPage } from "./pages/floorplan/FloorPlanPage";
@@ -23,7 +23,6 @@ function App() {
         <Route path="/" element={<MainLayout />}>
           <Route index element={<DashboardPage />} />
           <Route path="budget" element={<BudgetPage />} />
-          <Route path="procurement" element={<ProcurementPage />} />
           <Route path="vendors" element={<VendorsPage />} />
           <Route path="floor-plans" element={<FloorPlanPage />} />
           <Route path="projects" element={<ProjectsPage />} />
