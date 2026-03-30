@@ -23,6 +23,7 @@ from routes.masks import router as masks_router
 from routes.room_editor import router as room_editor_router
 from routes.items import router as items_router
 from routes.vendors import router as vendors_router
+from routes.settings.item_types import router as settings_item_types_router
 
 
 @asynccontextmanager
@@ -71,6 +72,7 @@ app.include_router(masks_router)
 app.include_router(room_editor_router)
 app.include_router(items_router)
 app.include_router(vendors_router)
+app.include_router(settings_item_types_router)
 
 
 @app.get("/health")

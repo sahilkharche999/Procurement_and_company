@@ -5,6 +5,7 @@ import uiReducer from './slices/uiSlice'
 import floorplanReducer from './slices/floorplanSlice'
 import projectReducer from './slices/projectSlice'
 import itemsReducer from './slices/itemsSlice'
+import itemTypesSettingsReducer from './slices/settings/itemTypesSlice'
 
 const store = configureStore({
     reducer: {
@@ -14,6 +15,7 @@ const store = configureStore({
         floorplan: floorplanReducer,
         projects: projectReducer,
         items: itemsReducer,
+        itemTypesSettings: itemTypesSettingsReducer,
     },
     middleware: (getDefaultMiddleware) =>
         getDefaultMiddleware({
