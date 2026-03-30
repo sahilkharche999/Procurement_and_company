@@ -59,6 +59,7 @@ export function BudgetRow({
   onAssignSubItem,
   rootItems = [],
   rooms = [],
+  vendors = [],
 }) {
   const [localItem, setLocalItem] = useState({ ...item });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -256,11 +257,12 @@ export function BudgetRow({
 
         {/* Extended */}
         <td className="p-2 align-middle w-[100px] text-right font-medium">
-          <span
-            className={isHidden ? "line-through text-muted-foreground" : ""}
-          >
+          <span className={isHidden ? "line-through text-muted-foreground" : ""}>
             {formatCurrency(item.extended)}
           </span>
+        </td>
+        <td className="p-2 align-middle w-[120px] truncate" title={item.vendor_name}>
+          {item.vendor_name || "-"}
         </td>
 
         {/* Actions */}
@@ -361,6 +363,7 @@ export function BudgetRow({
             onUpdate={(subId, data) => onUpdateSubItem(item._id, subId, data)}
             onDelete={(subId) => onDeleteSubItem(item._id, subId)}
             onDetach={(subId) => onDetachSubItem(item._id, subId)}
+            vendors={vendors}
           />
         ))}
 
@@ -445,10 +448,9 @@ export function BudgetRow({
             section: item.section,
             insert_relative_to: item._id,
             position: insertPosition,
+            room: formData.room || "",
+            vendor: formData.vendor || "",
             created_by: "user",
-            qty: formData.qty,
-            unit_cost:
-              formData.unit_cost !== "" ? parseFloat(formData.unit_cost) : 0,
           };
           const result = await onInsert(item._id, insertPosition);
           if (!result?.error) {
@@ -463,6 +465,7 @@ export function BudgetRow({
         title={`Insert Row ${insertPosition === "above" ? "Above" : "Below"}`}
         description={`Fill in the details for the new budget item to be inserted ${insertPosition} the current row.`}
         rooms={rooms}
+        vendors={vendors}
         isSubItem={false}
       />
 
@@ -479,6 +482,7 @@ export function BudgetRow({
             unit_cost:
               formData.unit_cost !== "" ? parseFloat(formData.unit_cost) : null,
             room: formData.room || parentRoomId,
+            vendor: formData.vendor || "",
             created_by: "user",
           };
           await onAddSubItem(item._id, subItemData);
@@ -492,6 +496,7 @@ export function BudgetRow({
           type: item.type || "FF&E",
         }}
         isSubItem={true}
+        vendors={vendors}
       />
 
       <DeleteRowDialog
@@ -528,12 +533,14 @@ export function BudgetRow({
             qty: formData.qty || "1",
             unit_cost: parseFloat(formData.unit_cost) || 0,
             room: formData.room,
+            vendor: formData.vendor || "",
           };
           await onSave(item._id, updatedItem);
           setEditDialogOpen(false);
         }}
         item={item}
         rooms={rooms}
+        vendors={vendors}
         isLoading={false}
       />
     </>

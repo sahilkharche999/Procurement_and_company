@@ -34,6 +34,7 @@ import { useUpdateBudgetItem } from "../../redux/hooks/budget/useUpdateBudgetIte
 import { useDeleteBudgetItem } from "../../redux/hooks/budget/useDeleteBudgetItem";
 import { useSubItems } from "../../redux/hooks/budget/useSubItems";
 import { useGetRooms } from "../../redux/hooks/project/useGetRooms";
+import { useGetAllVendors } from "../../redux/hooks/vendors/useGetAllVendors";
 import {
   setEditingRowId,
   setSearch,
@@ -74,6 +75,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
   const { remove } = useDeleteBudgetItem();
   const { addSub, updateSub, deleteSub, detachSub, assignSub } = useSubItems();
   const { rooms, loading: roomsLoading, error: roomsError, fetchRooms, createRoom } = useGetRooms(propProjectId);
+  const { vendors } = useGetAllVendors();
 
   const {
     editingRowId,
@@ -219,7 +221,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
                 <TableCell className="py-2 pr-3 text-right font-bold text-primary text-sm">
                   {formatCurrency(lastTotal)}
                 </TableCell>
-                <TableCell />
+                <TableCell colSpan={2} />
               </TableRow>,
             );
           }
@@ -228,7 +230,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
               key={`header-page-${key}`}
               className="bg-muted/60 hover:bg-muted/60"
             >
-              <TableCell colSpan={9} className="py-2 pl-3">
+              <TableCell colSpan={10} className="py-2 pl-3">
                 <Badge variant="secondary" className="text-xs">
                   Page {key ?? "N/A"}
                 </Badge>
@@ -253,7 +255,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
               key={`header-room-${key}`}
               className="bg-muted/60 hover:bg-muted/60"
             >
-              <TableCell colSpan={9} className="py-2 pl-3">
+              <TableCell colSpan={10} className="py-2 pl-3">
                 <Badge variant="secondary" className="text-xs">
                   {key}
                 </Badge>
@@ -283,6 +285,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
           onAssignSubItem={assignSub}
           rootItems={items}
           rooms={rooms}
+          vendors={vendors}
         />,
       );
     });
@@ -303,7 +306,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
           <TableCell className="py-2 pr-3 text-right font-bold text-primary text-sm">
             {formatCurrency(lastTotal)}
           </TableCell>
-          <TableCell />
+          <TableCell colSpan={2} />
         </TableRow>,
       );
     }
@@ -335,7 +338,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
               <TableCell className="py-2 pr-3 text-right font-bold text-primary text-sm">
                 {formatCurrency(roomTotals[room])}
               </TableCell>
-              <TableCell />
+              <TableCell colSpan={2} />
             </TableRow>,
           );
         }
@@ -522,13 +525,14 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
               <TableHead className="w-[80px]">Qty</TableHead>
               <TableHead className="w-[100px] text-right">Unit Cost</TableHead>
               <TableHead className="w-[100px] text-right">Extended</TableHead>
+              <TableHead className="w-[120px]">Vendor</TableHead>
               <TableHead className="w-[150px] text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {items.length === 0 && !loading && (
               <TableRow>
-                <TableCell colSpan={9} className="h-24 text-center">
+                <TableCell colSpan={10} className="h-24 text-center">
                   No budget items found.
                 </TableCell>
               </TableRow>
@@ -562,6 +566,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
             qty: formData.qty || "1",
             unit_cost: parseFloat(formData.unit_cost) || 0,
             room: formData.room || "",
+            vendor: formData.vendor || "",
             created_by: "user",
           };
           const result = await create(newItem);
@@ -574,6 +579,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
         title="Add New Budget Item"
         description="Fill in the details for the new budget item."
         rooms={rooms}
+        vendors={vendors}
         isSubItem={false}
         isLoading={false}
       />

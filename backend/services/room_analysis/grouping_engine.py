@@ -82,6 +82,7 @@ def _persist_group_in_mongo(group_payload, room_id=None, project_id=None):
         result = groups_coll.insert_one(
             {
                 "name": group_payload.get("name", ""),
+                "description": group_payload.get("description", ""),
                 "code": group_payload.get("code", ""),
                 "color": group_payload.get("color", [141, 106, 59]),
                 "type": group_payload.get("type", "FF&E"),

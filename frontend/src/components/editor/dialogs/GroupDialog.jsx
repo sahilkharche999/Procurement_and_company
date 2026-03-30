@@ -17,6 +17,7 @@ export default function GroupDialog({
 }) {
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [description, setDescription] = useState("");
   const [color, setColor] = useState("#3b82f6");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedGroupId, setSelectedGroupId] = useState(null);
@@ -39,6 +40,7 @@ export default function GroupDialog({
     setSelectedGroupId(null);
     setName("");
     setCode("");
+    setDescription("");
     setColor("#3b82f6");
   };
 
@@ -46,6 +48,7 @@ export default function GroupDialog({
     const created = await onCreateGroup({
       name,
       code,
+      description,
       color: hexToRgb(color),
       type: "FF&E",
     });
@@ -129,6 +132,12 @@ export default function GroupDialog({
               placeholder="Code (optional)"
               value={code}
               onChange={(e) => setCode(e.target.value)}
+              className="rounded-none h-9 text-sm focus-visible:ring-1 focus-visible:ring-blue-500"
+            />
+            <Input
+              placeholder="Description (optional)"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
               className="rounded-none h-9 text-sm focus-visible:ring-1 focus-visible:ring-blue-500"
             />
             <div className="flex items-center gap-2">

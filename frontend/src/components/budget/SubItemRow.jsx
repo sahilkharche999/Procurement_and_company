@@ -32,7 +32,8 @@ export function SubItemRow({
   onDetach,
   rooms = [],
   parentRoomId = "",
-  colSpanTotal = 10,
+  vendors = [],
+  colSpanTotal = 11,
 }) {
   const toDisplayQty = (qty) => {
     if (qty === null || qty === undefined || qty === "") return "-";
@@ -144,6 +145,10 @@ export function SubItemRow({
         </span>
       </TableCell>
 
+      <TableCell className={`${cellCls} w-[120px] truncate`} title={subitem.vendor_name}>
+        {subitem.vendor_name || "-"}
+      </TableCell>
+
       {/* Actions */}
       <TableCell className={`${cellCls} w-[150px] text-right`}>
         <div className="flex items-center justify-end gap-0.5">
@@ -222,6 +227,7 @@ export function SubItemRow({
               unit_cost:
                 formData.unit_cost !== "" ? Number(formData.unit_cost) : null,
               room: formData.room || roomId,
+              vendor: formData.vendor || "",
             });
             setEditDialogOpen(false);
           } finally {
@@ -233,6 +239,7 @@ export function SubItemRow({
           room: roomId,
         }}
         rooms={rooms}
+        vendors={vendors}
         isLoading={updating}
       />
     </TableRow>

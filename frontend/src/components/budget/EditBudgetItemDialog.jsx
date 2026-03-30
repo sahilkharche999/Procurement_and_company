@@ -23,6 +23,7 @@ export function EditBudgetItemDialog({
   onConfirm,
   item = {},
   rooms = [],
+  vendors = [],
   isLoading = false,
 }) {
   const { items: itemTypes } = useGetAllItemType()
@@ -34,6 +35,7 @@ export function EditBudgetItemDialog({
     unit_cost: '',
     room: '',
     type: 'FF&E',
+    vendor: '',
   })
 
   const typeOptions = useMemo(() => {
@@ -59,6 +61,7 @@ export function EditBudgetItemDialog({
         unit_cost: item.unit_cost || '',
         room: item.room || '',
         type: item.type || 'FF&E',
+        vendor: item.vendor || '',
       })
     }
   }, [open, item])
@@ -176,6 +179,19 @@ export function EditBudgetItemDialog({
             {rooms.length === 0 && (
               <p className="text-xs text-muted-foreground mt-1">Please create a room first</p>
             )}
+          </div>
+
+          {/* Vendor */}
+          <div>
+            <label className="text-sm font-medium block mb-1">Vendor</label>
+            <SelectRoot value={formData.vendor} onChange={(e) => handleChange('vendor', e.target.value)} disabled={isLoading}>
+              <SelectItem value="">Select a vendor</SelectItem>
+              {vendors.map((v) => (
+                <SelectItem key={v._id} value={v._id}>
+                  {v.company_name}
+                </SelectItem>
+              ))}
+            </SelectRoot>
           </div>
 
           <DialogFooter>

@@ -28,6 +28,7 @@ export default function SelectedGroupCard({
   );
   const [editColor, setEditColor] = useState(rgbToHex(group.color));
   const [editType, setEditType] = useState(group.type || "FF&E");
+  const [editDescription, setEditDescription] = useState(group.description || "");
   const [isDirty, setIsDirty] = useState(false);
   const colorInputRef = useRef(null);
   const { items: configuredItemTypes = [] } = useGetAllItemType();
@@ -52,9 +53,10 @@ export default function SelectedGroupCard({
     setEditUserEnteredQty(group.user_entered_qty || "");
     setEditColor(rgbToHex(group.color));
     setEditType(group.type || "FF&E");
+    setEditDescription(group.description || "");
     setIsDirty(false);
     setIsOpen(false); // collapse mask list on group switch
-  }, [group.id, group.type]); // keyed on id — fires only when a different group is chosen
+  }, [group.id, group.type, group.description]); // keyed on id — fires only when a different group is chosen
 
   // Masks that belong to this group
   const groupMasks = masks.filter((m) => m.group_id === group.id);
@@ -89,6 +91,11 @@ export default function SelectedGroupCard({
     setIsDirty(true);
   };
 
+  const handleDescriptionChange = (e) => {
+    setEditDescription(e.target.value);
+    setIsDirty(true);
+  };
+
   // ── Save ────────────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!editName.trim()) return;
@@ -99,6 +106,7 @@ export default function SelectedGroupCard({
       user_entered_qty: editUserEnteredQty.trim() || null,
       color: hexToRgb(editColor),
       type: editType,
+      description: editDescription.trim(),
     });
     if (ok) setIsDirty(false);
   };
@@ -110,6 +118,7 @@ export default function SelectedGroupCard({
     setEditUserEnteredQty(group.user_entered_qty || "");
     setEditColor(rgbToHex(group.color));
     setEditType(group.type || "FF&E");
+    setEditDescription(group.description || "");
     setIsDirty(false);
   };
 
@@ -200,6 +209,20 @@ export default function SelectedGroupCard({
             onChange={handleUserEnteredQtyChange}
             placeholder="Quantity override"
             className="w-full text-xs px-2 py-1 border border-gray-200 bg-white font-mono focus:outline-none focus:border-blue-400 transition-colors"
+          />
+        </div>
+
+        {/* Description */}
+        <div className="space-y-0.5">
+          <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+            Description
+          </label>
+          <textarea
+            value={editDescription}
+            onChange={handleDescriptionChange}
+            placeholder="Group description"
+            rows={2}
+            className="w-full text-xs px-2 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors"
           />
         </div>
 

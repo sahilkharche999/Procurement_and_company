@@ -37,6 +37,8 @@ def _serialize(doc: dict) -> dict:
     doc["_id"] = str(doc["_id"])
     if isinstance(doc.get("room"), ObjectId):
         doc["room"] = str(doc["room"])
+    if isinstance(doc.get("vendor"), ObjectId):
+        doc["vendor"] = str(doc["vendor"])
     return doc
 
 
@@ -50,6 +52,16 @@ def _resolve_room_name(room_value: str, room_map: dict[str, dict]) -> str:
     if ObjectId.is_valid(room_key):
         return "Unknown Room"
     return room_key
+
+
+def _resolve_vendor_name(vendor_value: str, vendor_map: dict[str, dict]) -> str:
+    if not vendor_value:
+        return ""
+    vendor_key = str(vendor_value)
+    vendor_doc = vendor_map.get(vendor_key)
+    if vendor_doc:
+        return vendor_doc.get("company_name") or vendor_key
+    return vendor_key
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -75,8 +87,9 @@ async def list_items(
         group_by_page: bool = False,
         rooms_filter: str = "",
 ) -> dict:
-    from db.mongo import get_rooms_collection
+    from db.mongo import get_rooms_collection, get_vendors_collection
     rooms_coll = get_rooms_collection()
+    vendors_coll = get_vendors_collection()
 
     col = _col()
     filt: dict = {"project": project_id, "is_sub_item": {"$ne": True}}
@@ -114,8 +127,17 @@ async def list_items(
     else:
         room_map = {}
 
+    # Preload vendors for population
+    vendor_ids = list({ObjectId(d["vendor"]) for d in docs if d.get("vendor") and ObjectId.is_valid(str(d["vendor"]))})
+    if vendor_ids:
+        vendors = await vendors_coll.find({"_id": {"$in": vendor_ids}}).to_list(None)
+        vendor_map = {str(v["_id"]): v for v in vendors}
+    else:
+        vendor_map = {}
+
     for d in docs:
         d["room_name"] = _resolve_room_name(d.get("room", ""), room_map)
+        d["vendor_name"] = _resolve_vendor_name(d.get("vendor", ""), vendor_map)
 
     # Fetch subitems
     all_subitem_ids = []
@@ -130,6 +152,7 @@ async def list_items(
         sub_docs = await col.find({"_id": {"$in": all_subitem_ids}}).to_list(None)
         for s in sub_docs:
             s["room_name"] = _resolve_room_name(s.get("room", ""), room_map)
+            s["vendor_name"] = _resolve_vendor_name(s.get("vendor", ""), vendor_map)
             subitems_map[str(s["_id"])] = _serialize(s)
 
     items = []
@@ -207,8 +230,17 @@ async def export_items(
     else:
         room_map = {}
 
+    # Preload vendors
+    vendor_ids = list({ObjectId(d["vendor"]) for d in docs if d.get("vendor") and ObjectId.is_valid(str(d["vendor"]))})
+    if vendor_ids:
+        vendors = await vendors_coll.find({"_id": {"$in": vendor_ids}}).to_list(None)
+        vendor_map = {str(v["_id"]): v for v in vendors}
+    else:
+        vendor_map = {}
+
     for d in docs:
         d["room_name"] = _resolve_room_name(d.get("room", ""), room_map)
+        d["vendor_name"] = _resolve_vendor_name(d.get("vendor", ""), vendor_map)
 
     # Resolve subitems properly
     all_subitem_ids = []
@@ -222,6 +254,7 @@ async def export_items(
         sub_docs = await col.find({"_id": {"$in": all_subitem_ids}}).to_list(None)
         for s in sub_docs:
             s["room_name"] = _resolve_room_name(s.get("room", ""), room_map)
+            s["vendor_name"] = _resolve_vendor_name(s.get("vendor", ""), vendor_map)
             subitems_map[str(s["_id"])] = _serialize(s)
 
     items = []
@@ -288,6 +321,7 @@ async def create_item(project_id: str, data: dict) -> dict:
         "type": data.get("type", "FF&E"),
         "page_no": data.get("page_no"),
         "qty": qty_value,
+        "vendor": data.get("vendor", ""),
         "user_entered_qty": user_entered_qty,
         "unit_cost": data.get("unit_cost"),
         "extended": extended,

@@ -29,6 +29,7 @@ class BudgetItemCreate(BaseModel):
     insert_relative_to: Optional[str] = None  # _id string of neighbour
     position: str = "below"  # "above" | "below"
     is_sub_item: bool = False
+    vendor: Optional[str] = None
     created_by: str = "user"  # "user" or "system"
 
 
@@ -47,6 +48,7 @@ class BudgetItemUpdate(BaseModel):
     unit_cost: Optional[float] = None
     hidden_from_total: Optional[bool] = None
     is_sub_item: Optional[bool] = None
+    vendor: Optional[str] = None
     created_by: Optional[str] = None
 
 
@@ -68,6 +70,8 @@ class BudgetItemOut(BaseModel):
     order_index: int = 0
     hidden_from_total: bool = False
     is_sub_item: bool = False
+    vendor: Optional[str] = None
+    vendor_name: Optional[str] = None
     created_by: str = "user"
     subitems: List['BudgetItemOut'] = []
     created_at: Optional[str] = None
