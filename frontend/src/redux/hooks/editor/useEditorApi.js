@@ -61,6 +61,7 @@ export function useEditorApi(roomId) {
     async (group) => {
       const payload = {
         name: group.name || "",
+        description: group.description || "",
         code: group.code || "",
         user_entered_qty: group.user_entered_qty ?? null,
         color: Array.isArray(group.color) ? group.color : [141, 106, 59],
@@ -83,6 +84,7 @@ export function useEditorApi(roomId) {
   const updateGroup = useCallback(async (groupId, group) => {
     const payload = {
       name: group.name || "",
+      description: group.description || "",
       code: group.code || "",
       user_entered_qty: group.user_entered_qty ?? null,
       color: Array.isArray(group.color) ? group.color : [141, 106, 59],

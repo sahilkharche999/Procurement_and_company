@@ -49,6 +49,7 @@ import { BudgetRow } from "./BudgetRow";
 import { PaginationControls } from "./PaginationControls";
 import { SearchInput } from "./SearchInput";
 import { CreateRoomDialog } from "./CreateRoomDialog";
+import { CreateBudgetItemDialog } from "./CreateBudgetItemDialog";
 import { formatCurrency } from "../../lib/utils";
 import { exportToExcel, exportToPdf } from "./exportBudget";
 
@@ -72,7 +73,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
   const { update } = useUpdateBudgetItem();
   const { remove } = useDeleteBudgetItem();
   const { addSub, updateSub, deleteSub, detachSub, assignSub } = useSubItems();
-  const { rooms, fetchRooms, createRoom } = useGetRooms(propProjectId);
+  const { rooms, loading: roomsLoading, error: roomsError, fetchRooms, createRoom } = useGetRooms(propProjectId);
 
   const {
     editingRowId,
@@ -85,16 +86,22 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
   } = useSelector((state) => state.budget);
   const [exporting, setExporting] = useState(null);
   const [createRoomDialogOpen, setCreateRoomDialogOpen] = useState(false);
+  const [createItemDialogOpen, setCreateItemDialogOpen] = useState(false);
 
-  // Sync projectId from prop into Redux
+  // Sync projectId from prop into Redux and fetch rooms
   useEffect(() => {
-    if (propProjectId && propProjectId !== projectId) {
+    if (propProjectId) {
       dispatch(setProjectIdAction(propProjectId));
-      fetchRooms();
-    } else if (propProjectId) {
+    }
+  }, [propProjectId, dispatch]);
+
+  // Fetch rooms when projectId is set
+  useEffect(() => {
+    if (propProjectId) {
       fetchRooms();
     }
-  }, [propProjectId, projectId, dispatch, fetchRooms]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propProjectId]);
 
   // Re-fetch items whenever the parent signals a refresh (e.g. after budget generation)
   useEffect(() => {
@@ -145,20 +152,8 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
     }
   };
 
-  const handleCreateNew = async () => {
-    const newItem = {
-      spec_no: "New Item",
-      description: "",
-      type: "FF&E",
-      qty: "1",
-      unit_cost: 0,
-      created_by: "user",
-    };
-    const result = await create(newItem);
-    if (!result.error) {
-      dispatch(setEditingRowId(result.payload._id));
-      refetch();
-    }
+  const handleCreateNew = () => {
+    setCreateItemDialogOpen(true);
   };
 
   const handleToggleHide = async (id) => {
@@ -555,6 +550,32 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
         open={createRoomDialogOpen}
         onOpenChange={setCreateRoomDialogOpen}
         onCreateRoom={createRoom}
+      />
+      <CreateBudgetItemDialog
+        open={createItemDialogOpen}
+        onOpenChange={setCreateItemDialogOpen}
+        onConfirm={async (formData) => {
+          const newItem = {
+            spec_no: formData.spec_no || "",
+            description: formData.description,
+            type: formData.type || "FF&E",
+            qty: formData.qty || "1",
+            unit_cost: parseFloat(formData.unit_cost) || 0,
+            room: formData.room || "",
+            created_by: "user",
+          };
+          const result = await create(newItem);
+          if (!result.error) {
+            dispatch(setEditingRowId(result.payload._id));
+            refetch();
+            setCreateItemDialogOpen(false);
+          }
+        }}
+        title="Add New Budget Item"
+        description="Fill in the details for the new budget item."
+        rooms={rooms}
+        isSubItem={false}
+        isLoading={false}
       />
     </div>
   );

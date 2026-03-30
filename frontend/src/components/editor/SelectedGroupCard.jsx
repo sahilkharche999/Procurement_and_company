@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { useGetAllItemType } from "../../redux/hooks/settings/itemtype/useGetAllItemType";
 
 // ─── Hex ↔ RGB helpers ────────────────────────────────────────────────────────
 function rgbToHex([r, g, b]) {
@@ -29,6 +30,20 @@ export default function SelectedGroupCard({
   const [editType, setEditType] = useState(group.type || "FF&E");
   const [isDirty, setIsDirty] = useState(false);
   const colorInputRef = useRef(null);
+  const { items: configuredItemTypes = [] } = useGetAllItemType();
+
+  const typeOptions = useMemo(() => {
+    const fromSettings = configuredItemTypes
+      .map((t) => String(t?.name || "").trim())
+      .filter(Boolean);
+   
+    const currentType = String(editType || "").trim();
+
+    const merged = [...fromSettings];
+    if (currentType) merged.push(currentType);
+
+    return Array.from(new Set(merged));
+  }, [configuredItemTypes, editType]);
 
   // ── Sync fields whenever the selected group changes ──────────────────────────
   useEffect(() => {
@@ -167,8 +182,11 @@ export default function SelectedGroupCard({
             onChange={handleTypeChange}
             className="w-full text-xs px-2 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors cursor-pointer"
           >
-            <option value="FF&E">FF&E</option>
-            <option value="OFCI">OFCI</option>
+            {typeOptions.map((typeName) => (
+              <option key={typeName} value={typeName}>
+                {typeName}
+              </option>
+            ))}
           </select>
         </div>
 

@@ -21,6 +21,7 @@ def _serialize_group(doc: dict) -> dict:
     d = dict(doc)
     d["_id"] = str(d["_id"])
     d["name"] = d.get("name", "")
+    d["description"] = d.get("description", "")
     d["code"] = d.get("code", "")
     d["color"] = d.get("color", [141, 106, 59])
     d["type"] = d.get("type", "FF&E")

@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class GroupBase(BaseModel):
     name: str
+    description: str = ""
     code: str = ""
     color: list[int] = [141, 106, 59]
     type: str = "FF&E"
@@ -34,6 +35,7 @@ class GroupCreate(GroupBase):
 
 class GroupUpdate(BaseModel):
     name: str | None = None
+    description: str | None = None
     code: str | None = None
     color: list[int] | None = None
     type: str | None = None

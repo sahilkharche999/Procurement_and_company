@@ -143,6 +143,7 @@ export default function EditorLayout() {
     return {
       id,
       name: raw.name || "",
+      description: raw.description || "",
       code: raw.code || "",
       user_entered_qty: raw.user_entered_qty ?? null,
       color: Array.isArray(raw.color) ? raw.color : [141, 106, 59],

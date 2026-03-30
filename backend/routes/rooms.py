@@ -19,7 +19,8 @@ router = APIRouter(prefix="/rooms", tags=["Rooms"])
 @router.get("/project/{project_id}")
 async def get_rooms_by_project(project_id: str):
     rooms_coll = get_rooms_collection()
-    cursor = rooms_coll.find({"project": project_id})
+    # Convert project_id to ObjectId for proper MongoDB query
+    cursor = rooms_coll.find({"project": as_obj_id(project_id)})
     docs = await cursor.to_list(1000)
     for d in docs:
         normalize_room_doc(d)
@@ -30,7 +31,7 @@ async def get_rooms_by_project(project_id: str):
 async def create_room(project_id: str, body: RoomCreate):
     rooms_coll = get_rooms_collection()
     new_room = {
-        "project": project_id,
+        "project": as_obj_id(project_id),  # Store as ObjectId
         "name": body.name,
         "notes": body.notes,
         "created_by": body.created_by,
@@ -40,6 +41,7 @@ async def create_room(project_id: str, body: RoomCreate):
     }
     res = await rooms_coll.insert_one(new_room)
     new_room["_id"] = str(res.inserted_id)
+    new_room["project"] = str(new_room["project"])  # Convert back to string in response
     return new_room
 
 

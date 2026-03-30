@@ -1,5 +1,5 @@
 // export { default } from "../CreateGroupDialog";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useGetAllItemType } from "../../../redux/hooks/settings/itemtype/useGetAllItemType";
 
 // ─── Hex → [R,G,B] helper ────────────────────────────────────────────────────
 function hexToRgb(hex) {
@@ -34,15 +35,33 @@ const PRESETS = [
 ];
 
 export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
+  const { items: configuredItemTypes = [] } = useGetAllItemType();
+
   const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
   const [code, setCode] = useState("");
   const [userEnteredQty, setUserEnteredQty] = useState("");
   const [color, setColor] = useState("#3b82f6");
   const [type, setType] = useState("FF&E");
   const [error, setError] = useState("");
 
+  const typeOptions = useMemo(() => {
+    const fromSettings = configuredItemTypes
+      .map((t) => String(t?.name || "").trim())
+      .filter(Boolean);
+
+    const defaults = ["FF&E", "OFCI"];
+    const currentType = String(type || "").trim();
+
+    const merged = [...fromSettings, ...defaults];
+    if (currentType) merged.push(currentType);
+
+    return Array.from(new Set(merged));
+  }, [configuredItemTypes, type]);
+
   const reset = () => {
     setName("");
+    setDescription("");
     setCode("");
     setUserEnteredQty("");
     setColor("#3b82f6");
@@ -67,6 +86,7 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
 
     const created = await onGroupCreated({
       name: name.trim(),
+      description: description.trim(),
       code: code.trim(),
       user_entered_qty: userEnteredQty.trim() || null,
       color: hexToRgb(color),
@@ -129,6 +149,22 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
             />
           </div>
 
+          {/* Description */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium text-gray-600 uppercase tracking-wider">
+              Description
+            </Label>
+            <Input
+              placeholder="Enter group description"
+              value={description}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                setError("");
+              }}
+              className="rounded-none h-9 text-sm focus-visible:ring-1 focus-visible:ring-blue-500"
+            />
+          </div>
+
           {/* Type */}
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-gray-600 uppercase tracking-wider">
@@ -139,8 +175,11 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
               onChange={(e) => setType(e.target.value)}
               className="flex h-9 w-full border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-blue-500 rounded-none cursor-pointer"
             >
-              <option value="FF&E">FF&E</option>
-              <option value="OFCI">OFCI</option>
+              {typeOptions.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
             </select>
           </div>
 
