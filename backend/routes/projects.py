@@ -15,7 +15,14 @@ import numpy as np
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, File, Form, UploadFile, BackgroundTasks
 
-from db.mongo import get_projects_collection, get_diagrams_collection, get_rooms_collection, get_pages_collection
+from db.mongo import (
+    get_projects_collection,
+    get_diagrams_collection,
+    get_rooms_collection,
+    get_pages_collection,
+    get_groups_collection,
+    get_masks_collection,
+)
 from models.project import ProjectCreate, ProjectOut, ProjectUpdate
 from services import project_service
 from services.project_service import LOCAL_FILE_DB
@@ -572,6 +579,24 @@ async def analyze_room(project_id: str, room_id: str, background_tasks: Backgrou
 
     if not room_doc:
         raise HTTPException(status_code=404, detail="Room not found in this project.")
+
+    # Reprocess safety: remove stale editor entities for this room first,
+    # so old labels/masks do not mix with newly generated data.
+    groups_coll = get_groups_collection()
+    masks_coll = get_masks_collection()
+
+    room_id_str = str(room_doc["_id"])
+    project_id_str = str(project_id)
+    room_id_oid = ObjectId(room_id_str) if len(room_id_str) == 24 and ObjectId.is_valid(room_id_str) else room_id_str
+    project_id_oid = ObjectId(project_id_str) if len(project_id_str) == 24 and ObjectId.is_valid(project_id_str) else project_id_str
+
+    cleanup_filter = {
+        "room": {"$in": [room_id_str, room_id_oid]},
+        "project": {"$in": [project_id_str, project_id_oid]},
+    }
+
+    await masks_coll.delete_many(cleanup_filter)
+    await groups_coll.delete_many(cleanup_filter)
 
     # Queue the background process
     background_tasks.add_task(

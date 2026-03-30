@@ -11,66 +11,17 @@ import {
 } from "react-konva";
 import { useState, useRef, useEffect } from "react";
 import useImage from "use-image";
+import {
+  calculateMaskBounds,
+  computeHandles,
+  generateSmoothPolygon,
+} from "./utils/canvasGeometryUtils";
+import {
+  createLabelPolygon,
+  getSelectedMaskIdsInSelectionBox,
+  getSelectionBoxFromPoints,
+} from "./utils/canvasSelectionUtils";
 // import defaultFloorImage from "../../data/floorplan.png";
-
-// Helper function to calculate bounding box of a polygon
-const calculatePolygonBounds = (polygon) => {
-  if (!polygon || polygon.length === 0) {
-    return null;
-  }
-  const flatPoints = Array.isArray(polygon[0]) ? polygon.flat() : polygon;
-  let minX = Infinity,
-    maxX = -Infinity,
-    minY = Infinity,
-    maxY = -Infinity;
-
-  for (let i = 0; i < flatPoints.length; i += 2) {
-    minX = Math.min(minX, flatPoints[i]);
-    maxX = Math.max(maxX, flatPoints[i]);
-    minY = Math.min(minY, flatPoints[i + 1]);
-    maxY = Math.max(maxY, flatPoints[i + 1]);
-  }
-
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-  };
-};
-
-// Helper function to calculate bounding box of all polygons in a mask
-const calculateMaskBounds = (mask) => {
-  if (!mask.polygons || mask.polygons.length === 0) {
-    return null;
-  }
-
-  let minX = Infinity,
-    maxX = -Infinity,
-    minY = Infinity,
-    maxY = -Infinity;
-
-  mask.polygons.forEach((polygon) => {
-    const bounds = calculatePolygonBounds(polygon);
-    if (bounds) {
-      minX = Math.min(minX, bounds.x);
-      maxX = Math.max(maxX, bounds.x + bounds.width);
-      minY = Math.min(minY, bounds.y);
-      maxY = Math.max(maxY, bounds.y + bounds.height);
-    }
-  });
-
-  if (minX === Infinity) {
-    return null;
-  }
-
-  return {
-    x: minX,
-    y: minY,
-    width: maxX - minX,
-    height: maxY - minY,
-  };
-};
 
 export default function CanvasEditor({
   groups,
@@ -214,53 +165,14 @@ export default function CanvasEditor({
     if (!isSelecting) return;
     e.evt.preventDefault();
     const start = selectionStartRef.current;
-    setSelectionBox({
-      x: Math.min(start.x, pos.x),
-      y: Math.min(start.y, pos.y),
-      width: Math.abs(pos.x - start.x),
-      height: Math.abs(pos.y - start.y),
-    });
+    setSelectionBox(getSelectionBoxFromPoints(start, pos));
   };
 
-  const handleMouseUp = (e) => {
+  const handleMouseUp = () => {
     if (!isSelecting) return;
 
     if (selectionBox) {
-      const box = selectionBox;
-      const selectedIds = [];
-
-      masks.forEach((mask) => {
-        if (!mask.polygons) return;
-        let minX = Infinity,
-          minY = Infinity,
-          maxX = -Infinity,
-          maxY = -Infinity;
-        mask.polygons.forEach((polygon) => {
-          polygon.flat().forEach((v, i) => {
-            if (i % 2 === 0) {
-              minX = Math.min(minX, v);
-              maxX = Math.max(maxX, v);
-            } else {
-              minY = Math.min(minY, v);
-              maxY = Math.max(maxY, v);
-            }
-          });
-        });
-        const maskBox = {
-          x: minX,
-          y: minY,
-          width: maxX - minX,
-          height: maxY - minY,
-        };
-        if (
-          maskBox.x >= box.x &&
-          maskBox.x + maskBox.width <= box.x + box.width &&
-          maskBox.y >= box.y &&
-          maskBox.y + maskBox.height <= box.y + box.height
-        ) {
-          selectedIds.push(mask.id);
-        }
-      });
+      const selectedIds = getSelectedMaskIdsInSelectionBox(masks, selectionBox);
 
       if (setSelectedMaskIds) setSelectedMaskIds(selectedIds);
     }
@@ -328,100 +240,15 @@ export default function CanvasEditor({
     return changeGroupMode ? "#f97316" : "red";
   };
 
-  // Compute Cubic Bezier handles for curve nodes
-  const computeHandles = (rawNodes, close = false) => {
-    const numParams = rawNodes.length;
-    if (numParams === 0) return [];
+  const shouldDeselectOnCanvasClick = (target) => {
+    if (!target) return false;
 
-    const getPrev = (i) =>
-      close
-        ? rawNodes[(i - 1 + numParams) % numParams]
-        : rawNodes[Math.max(i - 1, 0)];
-    const getNext = (i) =>
-      close
-        ? rawNodes[(i + 1) % numParams]
-        : rawNodes[Math.min(i + 1, numParams - 1)];
+    // Clicked on empty stage area.
+    if (target === target.getStage()) return true;
 
-    return rawNodes.map((n, i) => {
-      if (!n.isCurve) {
-        return {
-          ...n,
-          handleIn: { x: n.x, y: n.y },
-          handleOut: { x: n.x, y: n.y },
-        };
-      }
-
-      const prev = getPrev(i);
-      const next = getNext(i);
-
-      let vx = next.x - prev.x;
-      let vy = next.y - prev.y;
-      const len = Math.sqrt(vx * vx + vy * vy) || 1;
-
-      vx /= len;
-      vy /= len;
-
-      const tension = 0.3; // Magic number for nice smooth curves
-      const dPrev = Math.sqrt(
-        Math.pow(n.x - prev.x, 2) + Math.pow(n.y - prev.y, 2),
-      );
-      const dNext = Math.sqrt(
-        Math.pow(next.x - n.x, 2) + Math.pow(next.y - n.y, 2),
-      );
-
-      return {
-        ...n,
-        handleIn: {
-          x: n.x - vx * dPrev * tension,
-          y: n.y - vy * dPrev * tension,
-        },
-        handleOut: {
-          x: n.x + vx * dNext * tension,
-          y: n.y + vy * dNext * tension,
-        },
-      };
-    });
-  };
-
-  const generateSmoothPolygon = (rawNodes, close = false) => {
-    if (rawNodes.length === 0) return [];
-    if (rawNodes.length === 1) return [rawNodes[0].x, rawNodes[0].y];
-
-    const computedNodes = computeHandles(rawNodes, close);
-    const numParams = computedNodes.length;
-
-    const out = [];
-    out.push(computedNodes[0].x, computedNodes[0].y);
-
-    const numSegments = close ? numParams : numParams - 1;
-    for (let i = 0; i < numSegments; i++) {
-      const p1 = computedNodes[i];
-      const p2 = computedNodes[(i + 1) % numParams];
-
-      if (!p1.isCurve && !p2.isCurve) {
-        // Straight line
-        out.push(p2.x, p2.y);
-      } else {
-        // Cubic Bezier Segment
-        const cp1 = p1.isCurve ? p1.handleOut : { x: p1.x, y: p1.y };
-        const cp2 = p2.isCurve ? p2.handleIn : { x: p2.x, y: p2.y };
-
-        const segmentSteps = 20;
-        for (let t = 1; t <= segmentSteps; t++) {
-          const u = t / segmentSteps;
-          const invU = 1 - u;
-          const b0 = invU * invU * invU;
-          const b1 = 3 * invU * invU * u;
-          const b2 = 3 * invU * u * u;
-          const b3 = u * u * u;
-
-          const x = b0 * p1.x + b1 * cp1.x + b2 * cp2.x + b3 * p2.x;
-          const y = b0 * p1.y + b1 * cp1.y + b2 * cp2.y + b3 * p2.y;
-          out.push(x, y);
-        }
-      }
-    }
-    return out;
+    // Clicked on floorplan image (still "empty" from tag-selection perspective).
+    const className = target.getClassName?.();
+    return className === "Image";
   };
 
   return (
@@ -467,26 +294,14 @@ export default function CanvasEditor({
         if (isLabelDrawMode) {
           if (e.evt.button !== 0) return;
           const pos = e.target.getStage().getRelativePointerPosition();
-          const labelSize = 20;
-          const half = labelSize / 2;
-          const polygon = [
-            pos.x - half,
-            pos.y - half,
-            pos.x + half,
-            pos.y - half,
-            pos.x + half,
-            pos.y + half,
-            pos.x - half,
-            pos.y + half,
-            pos.x - half,
-            pos.y - half,
-          ];
+          const polygon = createLabelPolygon(pos);
           onCreateLabelMask?.([polygon]);
           return;
         }
 
-        // Deselect masks when clicking on empty stage area
-        if (e.target === e.target.getStage()) {
+        // Deselect masks when clicking on any non-tag canvas area
+        // (empty stage OR floorplan image without a tag).
+        if (shouldDeselectOnCanvasClick(e.target)) {
           setSelectedMaskIds?.([]);
         }
       }}
@@ -562,7 +377,7 @@ export default function CanvasEditor({
                   !changeGroupMode
                 }
                 onClick={(e) => handleMaskClick(e, mask)}
-                onDragEnd={(e) => {
+                onDragEnd={() => {
                   const node = maskRefs.current[mask.id];
                   if (!node) return;
                   const dx = node.x();
@@ -573,7 +388,7 @@ export default function CanvasEditor({
                     onUpdateMaskPosition(mask.id, dx, dy);
                   }
                 }}
-                onTransformEnd={(e) => {
+                onTransformEnd={() => {
                   const node = maskRefs.current[mask.id];
                   if (!node) return;
                   const transform = node.getTransform();
@@ -655,7 +470,7 @@ export default function CanvasEditor({
                   !changeGroupMode
                 }
                 onClick={(e) => handleMaskClick(e, mask)}
-                onDragEnd={(e) => {
+                onDragEnd={() => {
                   const node = maskRefs.current[mask.id];
                   if (!node) return;
                   const dx = node.x();
@@ -666,7 +481,7 @@ export default function CanvasEditor({
                     onUpdateMaskPosition(mask.id, dx, dy);
                   }
                 }}
-                onTransformEnd={(e) => {
+                onTransformEnd={() => {
                   const node = maskRefs.current[mask.id];
                   if (!node) return;
                   const transform = node.getTransform();

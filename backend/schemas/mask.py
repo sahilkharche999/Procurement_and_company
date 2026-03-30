@@ -13,7 +13,7 @@ class MaskBase(BaseModel):
     name: str
     code: str = ""
     color: list[int] = [141, 106, 59]
-    type: Literal["FF&E", "OFCI"] = "FF&E"
+    type: str = "FF&E"
     description: str = ""
     room: str = ""
     project: str = ""
@@ -42,7 +42,7 @@ class MaskUpdate(BaseModel):
     name: str | None = None
     code: str | None = None
     color: list[int] | None = None
-    type: Literal["FF&E", "OFCI"] | None = None
+    type: str | None = None
     description: str | None = None
     room: str | None = None
     project: str | None = None

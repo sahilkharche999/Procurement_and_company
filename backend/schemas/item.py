@@ -4,18 +4,15 @@ Pydantic models for Price Register item records.
 """
 from __future__ import annotations
 
-from typing import Optional, Literal
+from typing import Optional
 
 from pydantic import BaseModel, Field
-
-
-ItemType = Literal["FF&E", "OFCI"]
 
 
 class ItemCreate(BaseModel):
     name: str
     code: str = ""
-    type: ItemType = "FF&E"
+    type: str = "FF&E"
     description: str = ""
     price: float = 0.0
     extended_price: float = 0.0
@@ -24,7 +21,7 @@ class ItemCreate(BaseModel):
 class ItemUpdate(BaseModel):
     name: Optional[str] = None
     code: Optional[str] = None
-    type: Optional[ItemType] = None
+    type: Optional[str] = None
     description: Optional[str] = None
     price: Optional[float] = None
     extended_price: Optional[float] = None
@@ -34,7 +31,7 @@ class ItemOut(BaseModel):
     id: str = Field(alias="_id")
     name: str
     code: str = ""
-    type: ItemType = "FF&E"
+    type: str = "FF&E"
     description: str = ""
     price: float = 0.0
     extended_price: float = 0.0

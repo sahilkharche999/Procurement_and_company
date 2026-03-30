@@ -4,14 +4,25 @@ import editorData from "../../data/editor_data.json";
 import CanvasEditor from "./CanvasEditor";
 import Sidebar from "./Sidebar";
 import ContextMenu from "./ContextMenu";
-import GroupDialog from "./GroupDialog";
-import CreateGroupDialog from "./CreateGroupDialog";
+import GroupDialog from "./dialogs/GroupDialog";
+import CreateGroupDialog from "./dialogs/CreateGroupDialog";
 import GroupAssignPopover from "./GroupAssignPopover";
-import AssignDrawnMaskDialog from "./AssignDrawnMaskDialog";
+import AssignDrawnMaskDialog from "./dialogs/AssignDrawnMaskDialog";
+import FloatingToolbar from "./components/FloatingToolbar";
 import { buildServerUrl } from "../../config";
+import { useEditorApi } from "../../redux/hooks/editor/useEditorApi";
 
 export default function EditorLayout() {
   const { roomId } = useParams();
+  const {
+    fetchRoomById,
+    fetchEditorState,
+    persistEditorState,
+    setRoomBudgetInclusion,
+    createGroup,
+    updateGroup,
+    deleteGroup,
+  } = useEditorApi(roomId);
   const [bgImageUrl, setBgImageUrl] = useState(null);
   const [projectId, setProjectId] = useState("");
   const [roomIncludedInBudget, setRoomIncludedInBudget] = useState(false);
@@ -49,9 +60,7 @@ export default function EditorLayout() {
     if (!roomId) return;
     const fetchRoomData = async () => {
       try {
-        const res = await fetch(buildServerUrl(`/rooms/${roomId}`));
-        if (!res.ok) throw new Error("Failed to fetch room");
-        const roomData = await res.json();
+        const roomData = await fetchRoomById();
         const projectIdFromRoom = String(roomData.project || "");
         setProjectId(projectIdFromRoom);
 
@@ -62,50 +71,44 @@ export default function EditorLayout() {
         }
 
         if (projectIdFromRoom) {
-          const masksRes = await fetch(
-            `${buildServerUrl(`/projects/${projectIdFromRoom}/rooms/${roomId}/editor-state`)}?t=${Date.now()}`,
-            { cache: "no-store" },
-          );
-          if (masksRes.ok) {
-            const data = await masksRes.json();
+          const data = await fetchEditorState(projectIdFromRoom);
 
-            const initializedGroups = {};
-            for (const [key, group] of Object.entries(data.groups || {})) {
-              initializedGroups[key] = {
-                ...group,
-                type: group.type || "FF&E",
-              };
-            }
-
-            // Always prefer latest server payload to avoid stale local cache
-            // causing visual misalignment with the current room image.
-            setGroups(initializedGroups);
-            setMasks(data.masks || []);
-            setHistory([
-              {
-                masks: data.masks || [],
-                groups: initializedGroups,
-              },
-            ]);
-            setHistoryIndex(0);
-
-            // Sync cache to latest server data as well.
-            localStorage.setItem(
-              `editor_groups_${roomId}`,
-              JSON.stringify(initializedGroups),
-            );
-            localStorage.setItem(
-              `editor_masks_${roomId}`,
-              JSON.stringify(data.masks || []),
-            );
+          const initializedGroups = {};
+          for (const [key, group] of Object.entries(data.groups || {})) {
+            initializedGroups[key] = {
+              ...group,
+              type: group.type || "FF&E",
+            };
           }
+
+          // Always prefer latest server payload to avoid stale local cache
+          // causing visual misalignment with the current room image.
+          setGroups(initializedGroups);
+          setMasks(data.masks || []);
+          setHistory([
+            {
+              masks: data.masks || [],
+              groups: initializedGroups,
+            },
+          ]);
+          setHistoryIndex(0);
+
+          // Sync cache to latest server data as well.
+          localStorage.setItem(
+            `editor_groups_${roomId}`,
+            JSON.stringify(initializedGroups),
+          );
+          localStorage.setItem(
+            `editor_masks_${roomId}`,
+            JSON.stringify(data.masks || []),
+          );
         }
       } catch (err) {
         console.error("Error fetching room data:", err);
       }
     };
     fetchRoomData();
-  }, [roomId]);
+  }, [roomId, fetchRoomById, fetchEditorState]);
 
   // ─── UI state ──────────────────────────────────────────────────────────────
   const [contextMenu, setContextMenu] = useState(null);
@@ -150,48 +153,17 @@ export default function EditorLayout() {
   };
 
   const createGroupOnServer = async (group) => {
-    if (!roomId) throw new Error("Missing room id");
-    const payload = {
-      name: group.name || "",
-      code: group.code || "",
-      user_entered_qty: group.user_entered_qty ?? null,
-      color: Array.isArray(group.color) ? group.color : [141, 106, 59],
-      type: group.type || "FF&E",
-      room: roomId,
-    };
-    const res = await fetch(buildServerUrl("/groups"), {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error("Failed to create group");
-    return normalizeGroup(await res.json());
+    const created = await createGroup(group);
+    return normalizeGroup(created);
   };
 
   const updateGroupOnServer = async (groupId, group) => {
-    const payload = {
-      name: group.name || "",
-      code: group.code || "",
-      user_entered_qty: group.user_entered_qty ?? null,
-      color: Array.isArray(group.color) ? group.color : [141, 106, 59],
-      type: group.type || "FF&E",
-    };
-    const res = await fetch(buildServerUrl(`/groups/${groupId}`), {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) throw new Error("Failed to update group");
-    return normalizeGroup(await res.json());
+    const updated = await updateGroup(groupId, group);
+    return normalizeGroup(updated);
   };
 
   const deleteGroupOnServer = async (groupId) => {
-    const res = await fetch(buildServerUrl(`/groups/${groupId}`), {
-      method: "DELETE",
-    });
-    if (!res.ok && res.status !== 404) {
-      throw new Error("Failed to delete group");
-    }
+    await deleteGroup(groupId);
   };
 
   const pushToHistory = (newMasks, newGroups) => {
@@ -225,17 +197,7 @@ export default function EditorLayout() {
       setSaveStatus("Saving to backend...");
       if (!projectId) throw new Error("Missing project context for room");
 
-      const res = await fetch(
-        buildServerUrl(`/projects/${projectId}/rooms/${roomId}/editor-state`),
-        {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ masks, groups }),
-        },
-      );
-      if (!res.ok) throw new Error("Failed to persist");
-
-      const persisted = await res.json();
+      const persisted = await persistEditorState(projectId, masks, groups);
       if (persisted?.groups && persisted?.masks) {
         setGroups(persisted.groups);
         setMasks(persisted.masks);
@@ -248,7 +210,7 @@ export default function EditorLayout() {
       setSaveStatus("Error saving to database");
       setTimeout(() => setSaveStatus(null), 2500);
     }
-  }, [roomId, projectId, masks, groups]);
+  }, [projectId, masks, groups, persistEditorState]);
 
   const handleToggleRoomIncludedInBudget = useCallback(
     async (nextValue) => {
@@ -256,16 +218,7 @@ export default function EditorLayout() {
       if (!projectId) return;
       try {
         setRoomIncludeLoading(true);
-        const res = await fetch(
-          buildServerUrl(`/projects/${projectId}/rooms/${roomId}/budget-inclusion`),
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ is_included_in_budget: nextValue }),
-          },
-        );
-        if (!res.ok) throw new Error("Failed to update room budget flag");
-        const updatedRoom = await res.json();
+        const updatedRoom = await setRoomBudgetInclusion(projectId, nextValue);
         setRoomIncludedInBudget(!!updatedRoom.is_included_in_budget);
       } catch (err) {
         console.error(err);
@@ -273,7 +226,7 @@ export default function EditorLayout() {
         setRoomIncludeLoading(false);
       }
     },
-    [roomId, projectId],
+    [roomId, projectId, setRoomBudgetInclusion],
   );
 
   const moveSelectedMasksBy = useCallback(
@@ -610,7 +563,7 @@ export default function EditorLayout() {
   /**
    * Delete a group:
    *  • Remove it from the groups map
-   *  • Unassign all masks that belonged to it (group_id → null)
+    *  • Remove all masks that belonged to it
    *  • Clear selectedGroupId if it was the deleted group
    *  • Push to undo/redo history
    */
@@ -621,9 +574,7 @@ export default function EditorLayout() {
       }
 
       const { [groupId]: _removed, ...newGroups } = groups;
-      const newMasks = masks.map((m) =>
-        m.group_id === groupId ? { ...m, group_id: null } : m,
-      );
+      const newMasks = masks.filter((m) => m.group_id !== groupId);
       setGroups(newGroups);
       setMasks(newMasks);
       if (selectedGroupId === groupId) setSelectedGroupId(null);
@@ -723,102 +674,12 @@ export default function EditorLayout() {
           backgroundSize: "24px 24px",
         }}
       >
-        {/* Floating Toolbar */}
-        <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 pointer-events-none">
-          <button
-            onClick={() => {
-              const next = !isDrawMode;
-              setIsDrawMode(next);
-              if (next) setIsLabelDrawMode(false);
-            }}
-            className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded shadow-sm border pointer-events-auto transition-colors ${
-              isDrawMode
-                ? "bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
-                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-            }`}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-4 h-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 20h9" />
-              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-            </svg>
-            {isDrawMode ? "Cancel Mask Drawing" : "Draw Custom Mask"}
-          </button>
-
-          <button
-            onClick={() => {
-              const next = !isLabelDrawMode;
-              setIsLabelDrawMode(next);
-              if (next) {
-                setIsDrawMode(false);
-              }
-            }}
-            className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded shadow-sm border pointer-events-auto transition-colors ${
-              isLabelDrawMode
-                ? "bg-violet-50 text-violet-700 border-violet-200 hover:bg-violet-100"
-                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-            }`}
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-4 h-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M4 7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3H8l-4 4V7z" />
-            </svg>
-            {isLabelDrawMode ? "Cancel Label Drawing" : "Draw Label"}
-          </button>
-
-          {isDrawMode && (
-            <div className="text-xs text-gray-600 bg-white/95 p-2.5 rounded shadow-sm border border-gray-200 pointer-events-auto">
-              <p className="font-medium text-gray-800 mb-1">Drawing Actions:</p>
-              <ul className="list-disc leading-snug space-y-0.5 ml-4">
-                <li>
-                  <strong>Left Click</strong> to add a straight corner.
-                </li>
-                <li>
-                  <strong>Right Click</strong> to add a smooth curve point.
-                </li>
-                <li>
-                  Press <strong>Enter</strong> to finish mask.
-                </li>
-                <li>
-                  Press <strong>Esc</strong> to cancel.
-                </li>
-              </ul>
-            </div>
-          )}
-
-          {isLabelDrawMode && (
-            <div className="text-xs text-gray-600 bg-white/95 p-2.5 rounded shadow-sm border border-violet-200 pointer-events-auto">
-              <p className="font-medium text-gray-800 mb-1">Label Drawing:</p>
-              <ul className="list-disc leading-snug space-y-0.5 ml-4">
-                <li>
-                  <strong>Click</strong> anywhere to place a label.
-                </li>
-                <li>
-                  Uses selected group from sidebar.
-                </li>
-                <li>
-                  If no group is selected, you&apos;ll be asked to choose one.
-                </li>
-              </ul>
-            </div>
-          )}
-        </div>
+        <FloatingToolbar
+          isDrawMode={isDrawMode}
+          setIsDrawMode={setIsDrawMode}
+          isLabelDrawMode={isLabelDrawMode}
+          setIsLabelDrawMode={setIsLabelDrawMode}
+        />
 
         <CanvasEditor
           groups={groups}

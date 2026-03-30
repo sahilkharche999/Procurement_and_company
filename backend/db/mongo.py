@@ -59,3 +59,6 @@ def get_masks_collection():
 
 def get_items_collection():
     return get_db()["items"]
+
+def get_vendors_collection():
+    return get_db()["vendors"]

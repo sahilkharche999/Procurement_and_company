@@ -47,6 +47,7 @@ export function SubItemRow({
   const [draft, setDraft] = useState({
     spec_no: subitem.spec_no || "",
     description: subitem.description || "",
+    type: subitem.type || "",
     qty: subitem.qty || "1",
     unit_cost: subitem.unit_cost ?? "",
   });
@@ -123,6 +124,19 @@ export function SubItemRow({
           <input {...field("description")} placeholder="Description" />
         ) : (
           <span>{subitem.description}</span>
+        )}
+      </TableCell>
+
+      {/* Type */}
+      <TableCell className={cellCls}>
+        {editing ? (
+          <input
+            {...field("type")}
+            placeholder="Type"
+            style={{ width: 80 }}
+          />
+        ) : (
+          <span>{subitem.type || "—"}</span>
         )}
       </TableCell>
 
