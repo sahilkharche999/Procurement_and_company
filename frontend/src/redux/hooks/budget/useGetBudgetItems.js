@@ -12,8 +12,8 @@ export function useGetBudgetItems() {
 
     const fetch = useCallback(() => {
         if (!projectId) return
-        dispatch(fetchBudgetItems({ projectId, section, page, search, roomFilter, groupByPage, groupByRoom }))
-    }, [dispatch, projectId, section, page, search, roomFilter, groupByPage, groupByRoom])
+        dispatch(fetchBudgetItems({ projectId, section, page, pageSize, search, roomFilter, groupByPage, groupByRoom }))
+    }, [dispatch, projectId, section, page, pageSize, search, roomFilter, groupByPage, groupByRoom])
 
     useEffect(() => {
         fetch()

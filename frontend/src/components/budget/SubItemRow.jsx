@@ -33,6 +33,7 @@ export function SubItemRow({
   rooms = [],
   parentRoomId = "",
   vendors = [],
+  visibleColumns = {},
   colSpanTotal = 11,
 }) {
   const toDisplayQty = (qty) => {
@@ -83,43 +84,44 @@ export function SubItemRow({
       : subitem.unit) ||
     "";
   const resolvedUnitName = subitem.unit_name || "-";
+  const isVisible = (columnId) => visibleColumns[columnId] !== false;
 
   return (
     <TableRow
       className={`bg-muted/20 hover:bg-muted/30 transition-colors ${mutedRow}`}
     >
       {/* Indent indicator */}
-      <TableCell className={`${cellCls} w-[100px]`}>
+      {isVisible("specNo") && <TableCell className={`${cellCls} w-[100px]`}>
         <div className="flex items-center gap-1 text-muted-foreground/50">
           <CornerDownRight className="h-3 w-3 shrink-0" />
           <span className="font-mono text-[11px] text-muted-foreground">
             {subitem.spec_no || "—"}
           </span>
         </div>
-      </TableCell>
+      </TableCell>}
 
       {/* Description */}
-      <TableCell className={`${cellCls} max-w-[200px] truncate`}>
+      {isVisible("description") && <TableCell className={`${cellCls} max-w-[200px] truncate`}>
         <span>{subitem.description}</span>
-      </TableCell>
+      </TableCell>}
 
       {/* Type */}
-      <TableCell className={`${cellCls} w-24`}>
+      {isVisible("type") && <TableCell className={`${cellCls} w-24`}>
         <Badge variant="outline" className="text-[11px] px-1.5 py-0.5">
           {subitem.type || "—"}
         </Badge>
-      </TableCell>
+      </TableCell>}
 
       {/* Room */}
-      <TableCell className={`${cellCls} w-[120px]`}>
+      {isVisible("room") && <TableCell className={`${cellCls} w-[120px]`}>
         <span className="truncate block">{resolvedRoomName}</span>
-      </TableCell>
+      </TableCell>}
 
       {/* Page — empty */}
-      <TableCell className={`${cellCls} w-[60px] text-center`} />
+      {isVisible("page") && <TableCell className={`${cellCls} w-[60px] text-center`} />}
 
       {/* Qty */}
-      <TableCell className={`${cellCls} w-[80px]`}>
+      {isVisible("qty") && <TableCell className={`${cellCls} w-[80px]`}>
         <div className="flex items-center gap-1.5">
           <span
             className={cn(
@@ -134,20 +136,20 @@ export function SubItemRow({
           />
           <span>{toDisplayQty(subitem.qty)}</span>
         </div>
-      </TableCell>
+      </TableCell>}
 
       {/* Unit */}
-      <TableCell className={`${cellCls} w-[100px]`}>
+      {isVisible("unit") && <TableCell className={`${cellCls} w-[100px]`}>
         {resolvedUnitName}
-      </TableCell>
+      </TableCell>}
 
       {/* Unit Cost */}
-      <TableCell className={`${cellCls} w-[100px] text-right`}>
+      {isVisible("unitCost") && <TableCell className={`${cellCls} w-[100px] text-right`}>
         {formatCurrency(subitem.unit_cost)}
-      </TableCell>
+      </TableCell>}
 
       {/* Extended */}
-      <TableCell className={`${cellCls} w-[100px] text-right font-medium`}>
+      {isVisible("extended") && <TableCell className={`${cellCls} w-[100px] text-right font-medium`}>
         <span
           className={
             subitem.hidden_from_total
@@ -157,14 +159,14 @@ export function SubItemRow({
         >
           {formatCurrency(subitem.extended)}
         </span>
-      </TableCell>
+      </TableCell>}
 
-      <TableCell className={`${cellCls} w-[120px] truncate`} title={subitem.vendor_name}>
+      {isVisible("vendor") && <TableCell className={`${cellCls} w-[120px] truncate`} title={subitem.vendor_name}>
         {subitem.vendor_name || "-"}
-      </TableCell>
+      </TableCell>}
 
       {/* Actions */}
-      <TableCell className={`${cellCls} w-[150px] text-right`}>
+      {isVisible("actions") && <TableCell className={`${cellCls} w-[150px] text-right`}>
         <div className="flex items-center justify-end gap-0.5">
           {/* Hide from totals */}
           <Button
@@ -225,7 +227,7 @@ export function SubItemRow({
             )}
           </Button>
         </div>
-      </TableCell>
+      </TableCell>}
 
       <EditBudgetItemDialog
         open={editDialogOpen}

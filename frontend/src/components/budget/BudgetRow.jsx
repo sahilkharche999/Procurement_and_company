@@ -60,6 +60,7 @@ export function BudgetRow({
   rootItems = [],
   rooms = [],
   vendors = [],
+  visibleColumns = {},
 }) {
   const [localItem, setLocalItem] = useState({ ...item });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -161,6 +162,7 @@ export function BudgetRow({
     item.user_entered_qty !== null &&
     String(item.user_entered_qty).trim() !== "";
   const effectiveQty = hasUserEnteredQty ? item.user_entered_qty : item.qty;
+  const isVisible = (columnId) => visibleColumns[columnId] !== false;
   const parentRoomId =
     typeof item.room === "object"
       ? item.room?._id || ""
@@ -173,7 +175,7 @@ export function BudgetRow({
         className={`border-b transition-colors hover:bg-muted/50 ${isEditing ? "bg-muted/30 ring-1 ring-inset ring-muted-foreground/20" : ""} ${isHidden ? "opacity-60" : ""}`}
       >
         {/* Spec No — with sub-item expand toggle */}
-        <td className="p-2 align-middle font-medium w-[100px]">
+        {isVisible("specNo") && <td className="p-2 align-middle font-medium w-[100px]">
           <div className="flex items-center gap-1">
             {hasSubitems ? (
               <button
@@ -192,10 +194,10 @@ export function BudgetRow({
             )}
             {item.spec_no}
           </div>
-        </td>
+        </td>}
 
         {/* Description */}
-        <td
+        {isVisible("description") && <td
           className="p-2 align-middle max-w-[200px] truncate"
           title={item.description}
         >
@@ -212,28 +214,28 @@ export function BudgetRow({
               </Badge>
             )}
           </div>
-        </td>
+        </td>}
 
         {/* Type */}
-        <td className="p-2 align-middle w-24">
+        {isVisible("type") && <td className="p-2 align-middle w-24">
           <Badge variant="outline" className="text-xs">
             {item.type || "FF&E"}
           </Badge>
-        </td>
+        </td>}
 
         {/* Room */}
-        <td className="p-2 align-middle w-[120px]">
+        {isVisible("room") && <td className="p-2 align-middle w-[120px]">
           {item.room_name ||
             "Unknown Room"}
-        </td>
+        </td>}
 
         {/* Page No */}
-        <td className="p-2 align-middle w-[60px] text-center">
+        {isVisible("page") && <td className="p-2 align-middle w-[60px] text-center">
           {item.page_no}
-        </td>
+        </td>}
 
         {/* Qty */}
-        <td className="p-2 align-middle w-[80px]">
+        {isVisible("qty") && <td className="p-2 align-middle w-[80px]">
           <div className="flex items-center gap-1.5">
             <span
               className={cn(
@@ -248,30 +250,30 @@ export function BudgetRow({
             />
             <span>{formatQtyDisplay(effectiveQty)}</span>
           </div>
-        </td>
+        </td>}
 
         {/* Unit */}
-        <td className="p-2 align-middle w-[100px]">
+        {isVisible("unit") && <td className="p-2 align-middle w-[100px]">
           {item.unit_name || "-"}
-        </td>
+        </td>}
 
         {/* Unit Cost */}
-        <td className="p-2 align-middle w-[100px] text-right">
+        {isVisible("unitCost") && <td className="p-2 align-middle w-[100px] text-right">
           {formatCurrency(item.unit_cost)}
-        </td>
+        </td>}
 
         {/* Extended */}
-        <td className="p-2 align-middle w-[100px] text-right font-medium">
+        {isVisible("extended") && <td className="p-2 align-middle w-[100px] text-right font-medium">
           <span className={isHidden ? "line-through text-muted-foreground" : ""}>
             {formatCurrency(item.extended)}
           </span>
-        </td>
-        <td className="p-2 align-middle w-[120px] truncate" title={item.vendor_name}>
+        </td>}
+        {isVisible("vendor") && <td className="p-2 align-middle w-[120px] truncate" title={item.vendor_name}>
           {item.vendor_name || "-"}
-        </td>
+        </td>}
 
         {/* Actions */}
-        <td className="p-2 align-middle w-[150px]">
+        {isVisible("actions") && <td className="p-2 align-middle w-[150px]">
           <div className="flex items-center gap-0.5 justify-end">
             {/* Edit button */}
             <Button
@@ -354,7 +356,7 @@ export function BudgetRow({
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
-        </td>
+        </td>}
       </tr>
 
       {/* ── Sub-items ── */}
@@ -369,6 +371,7 @@ export function BudgetRow({
             onDelete={(subId) => onDeleteSubItem(item._id, subId)}
             onDetach={(subId) => onDetachSubItem(item._id, subId)}
             vendors={vendors}
+            visibleColumns={visibleColumns}
           />
         ))}
 

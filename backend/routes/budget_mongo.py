@@ -32,13 +32,14 @@ async def create_budget(project_id: str):
 async def list_budget(
         project_id: str,
         page: int = Query(1, ge=1),
+        page_size: int = Query(12, ge=1),
         search: str = Query(""),
         group_by_room: bool = Query(False),
         group_by_page: bool = Query(False),
         rooms: str = Query(""),
 ):
     return await svc.list_items(
-        project_id, search, page, 12, group_by_room, group_by_page, rooms
+        project_id, search, page, page_size, group_by_room, group_by_page, rooms
     )
 
 
