@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useGetAllItemType } from "../../redux/hooks/settings/itemtype/useGetAllItemType";
+import { useGetAllUnits } from "../../redux/hooks/settings/units/useGetAllUnits";
 
 // ─── Hex ↔ RGB helpers ────────────────────────────────────────────────────────
 function rgbToHex([r, g, b]) {
@@ -28,10 +29,12 @@ export default function SelectedGroupCard({
   );
   const [editColor, setEditColor] = useState(rgbToHex(group.color));
   const [editType, setEditType] = useState(group.type || "FF&E");
+  const [editUnitId, setEditUnitId] = useState(group.unit_id || "");
   const [editDescription, setEditDescription] = useState(group.description || "");
   const [isDirty, setIsDirty] = useState(false);
   const colorInputRef = useRef(null);
   const { items: configuredItemTypes = [] } = useGetAllItemType();
+  const { items: configuredUnits = [] } = useGetAllUnits();
 
   const typeOptions = useMemo(() => {
     const fromSettings = configuredItemTypes
@@ -46,6 +49,14 @@ export default function SelectedGroupCard({
     return Array.from(new Set(merged));
   }, [configuredItemTypes, editType]);
 
+  const unitOptions = useMemo(() => {
+    const fromSettings = configuredUnits
+      .map((u) => ({ id: String(u?._id || ""), name: String(u?.name || "").trim() }))
+      .filter((u) => u.id && u.name);
+
+    return fromSettings;
+  }, [configuredUnits]);
+
   // ── Sync fields whenever the selected group changes ──────────────────────────
   useEffect(() => {
     setEditName(group.name);
@@ -53,10 +64,11 @@ export default function SelectedGroupCard({
     setEditUserEnteredQty(group.user_entered_qty || "");
     setEditColor(rgbToHex(group.color));
     setEditType(group.type || "FF&E");
+    setEditUnitId(group.unit_id || "");
     setEditDescription(group.description || "");
     setIsDirty(false);
     setIsOpen(false); // collapse mask list on group switch
-  }, [group.id, group.type, group.description]); // keyed on id — fires only when a different group is chosen
+  }, [group.id, group.type, group.description, group.unit_id]); // keyed on id — fires only when a different group is chosen
 
   // Masks that belong to this group
   const groupMasks = masks.filter((m) => m.group_id === group.id);
@@ -91,6 +103,11 @@ export default function SelectedGroupCard({
     setIsDirty(true);
   };
 
+  const handleUnitChange = (e) => {
+    setEditUnitId(e.target.value);
+    setIsDirty(true);
+  };
+
   const handleDescriptionChange = (e) => {
     setEditDescription(e.target.value);
     setIsDirty(true);
@@ -106,6 +123,7 @@ export default function SelectedGroupCard({
       user_entered_qty: editUserEnteredQty.trim() || null,
       color: hexToRgb(editColor),
       type: editType,
+      unit_id: editUnitId || null,
       description: editDescription.trim(),
     });
     if (ok) setIsDirty(false);
@@ -118,6 +136,7 @@ export default function SelectedGroupCard({
     setEditUserEnteredQty(group.user_entered_qty || "");
     setEditColor(rgbToHex(group.color));
     setEditType(group.type || "FF&E");
+    setEditUnitId(group.unit_id || "");
     setEditDescription(group.description || "");
     setIsDirty(false);
   };
@@ -210,6 +229,25 @@ export default function SelectedGroupCard({
             placeholder="Quantity override"
             className="w-full text-xs px-2 py-1 border border-gray-200 bg-white font-mono focus:outline-none focus:border-blue-400 transition-colors"
           />
+        </div>
+
+        {/* Unit */}
+        <div className="space-y-0.5">
+          <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+            Unit
+          </label>
+          <select
+            value={editUnitId}
+            onChange={handleUnitChange}
+            className="w-full text-xs px-2 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors cursor-pointer"
+          >
+            <option value="">No Unit</option>
+            {unitOptions.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         {/* Description */}

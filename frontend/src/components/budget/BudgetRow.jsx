@@ -250,6 +250,11 @@ export function BudgetRow({
           </div>
         </td>
 
+        {/* Unit */}
+        <td className="p-2 align-middle w-[100px]">
+          {item.unit_name || "-"}
+        </td>
+
         {/* Unit Cost */}
         <td className="p-2 align-middle w-[100px] text-right">
           {formatCurrency(item.unit_cost)}
@@ -449,6 +454,7 @@ export function BudgetRow({
             insert_relative_to: item._id,
             position: insertPosition,
             room: formData.room || "",
+            unit_id: formData.unit_id || null,
             vendor: formData.vendor || "",
             created_by: "user",
           };
@@ -479,6 +485,7 @@ export function BudgetRow({
             description: formData.description,
             type: formData.type || item.type || "FF&E",
             qty: formData.qty,
+            unit_id: formData.unit_id || null,
             unit_cost:
               formData.unit_cost !== "" ? parseFloat(formData.unit_cost) : null,
             room: formData.room || parentRoomId,
@@ -494,6 +501,12 @@ export function BudgetRow({
         initialValues={{
           room: parentRoomId,
           type: item.type || "FF&E",
+          unit_id:
+            (typeof item.unit_id === "object"
+              ? item.unit_id?._id || ""
+              : item.unit_id) ||
+            (typeof item.unit === "object" ? item.unit?._id || "" : item.unit) ||
+            "",
         }}
         isSubItem={true}
         vendors={vendors}
@@ -531,6 +544,7 @@ export function BudgetRow({
             description: formData.description,
             type: formData.type || "FF&E",
             qty: formData.qty || "1",
+            unit_id: formData.unit_id || null,
             unit_cost: parseFloat(formData.unit_cost) || 0,
             room: formData.room,
             vendor: formData.vendor || "",

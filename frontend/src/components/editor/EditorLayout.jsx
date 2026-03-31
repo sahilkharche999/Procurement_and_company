@@ -148,6 +148,7 @@ export default function EditorLayout() {
       user_entered_qty: raw.user_entered_qty ?? null,
       color: Array.isArray(raw.color) ? raw.color : [141, 106, 59],
       type: raw.type || "FF&E",
+      unit_id: raw.unit_id || null,
       room: raw.room || roomId || "",
       project: raw.project || "",
     };

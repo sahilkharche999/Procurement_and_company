@@ -59,12 +59,20 @@ async def create_budget_item(project_id: str, body: BudgetItemCreate):
     # Backward-compatible alias support for clients sending room_id
     if not data.get("room") and data.get("room_id"):
         data["room"] = str(data.get("room_id"))
+    # Backward-compatible alias support for old clients sending unit
+    if not data.get("unit_id") and data.get("unit"):
+        data["unit_id"] = str(data.get("unit"))
+    data.pop("unit", None)
     return await svc.create_item(project_id, data)
 
 
 @router.put("/{project_id}/item/{item_id}")
 async def update_budget_item(project_id: str, item_id: str, body: BudgetItemUpdate):
     updates = body.model_dump(exclude_none=True)
+    # Backward-compatible alias support for old clients sending unit
+    if not updates.get("unit_id") and updates.get("unit"):
+        updates["unit_id"] = str(updates.get("unit"))
+    updates.pop("unit", None)
     result = await svc.update_item(item_id, updates)
     if result is None:
         raise HTTPException(404, "Budget item not found")

@@ -16,6 +16,7 @@ import {
   SelectItem,
 } from '../ui/select'
 import { useGetAllItemType } from '../../redux/hooks/settings/itemtype/useGetAllItemType'
+import { useGetAllUnits } from '../../redux/hooks/settings/units/useGetAllUnits'
 
 export function EditBudgetItemDialog({
   open,
@@ -27,11 +28,13 @@ export function EditBudgetItemDialog({
   isLoading = false,
 }) {
   const { items: itemTypes } = useGetAllItemType()
+  const { items: units } = useGetAllUnits()
 
   const [formData, setFormData] = useState({
     spec_no: '',
     description: '',
     qty: '1',
+    unit_id: '',
     unit_cost: '',
     room: '',
     type: 'FF&E',
@@ -58,10 +61,14 @@ export function EditBudgetItemDialog({
         spec_no: item.spec_no || '',
         description: item.description || '',
         qty: item.qty || '1',
+        unit_id:
+          (typeof item.unit_id === 'object' ? item.unit_id?._id || '' : item.unit_id) ||
+          (typeof item.unit === 'object' ? item.unit?._id || '' : item.unit) ||
+          '',
         unit_cost: item.unit_cost || '',
-        room: item.room || '',
+        room: typeof item.room === 'object' ? item.room?._id || '' : item.room || '',
         type: item.type || 'FF&E',
-        vendor: item.vendor || '',
+        vendor: typeof item.vendor === 'object' ? item.vendor?._id || '' : item.vendor || '',
       })
     }
   }, [open, item])
@@ -146,6 +153,21 @@ export function EditBudgetItemDialog({
               placeholder="1"
               disabled={isLoading}
             />
+          </div>
+
+          {/* Unit */}
+          <div>
+            <label className="text-sm font-medium block mb-1">Unit</label>
+            <SelectRoot value={formData.unit_id} onChange={(e) => handleChange('unit_id', e.target.value)} disabled={isLoading || units.length === 0}>
+              <SelectItem value="">
+                {units.length === 0 ? 'No units available' : 'Select a unit'}
+              </SelectItem>
+              {units.map((u) => (
+                <SelectItem key={u._id} value={u._id}>
+                  {u.name || u._id}
+                </SelectItem>
+              ))}
+            </SelectRoot>
           </div>
 
           {/* Unit Cost */}

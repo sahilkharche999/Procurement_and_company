@@ -15,6 +15,7 @@ class GroupBase(BaseModel):
     code: str = ""
     color: list[int] = [141, 106, 59]
     type: str = "FF&E"
+    unit_id: Optional[str] = None
     user_entered_qty: Optional[str] = None
     room: str = ""
     project: str = ""
@@ -39,6 +40,7 @@ class GroupUpdate(BaseModel):
     code: str | None = None
     color: list[int] | None = None
     type: str | None = None
+    unit_id: Optional[str] = None
     user_entered_qty: Optional[str] = None
 
     @field_validator("color")

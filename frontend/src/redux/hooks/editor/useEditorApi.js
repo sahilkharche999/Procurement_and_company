@@ -66,6 +66,7 @@ export function useEditorApi(roomId) {
         user_entered_qty: group.user_entered_qty ?? null,
         color: Array.isArray(group.color) ? group.color : [141, 106, 59],
         type: group.type || "FF&E",
+        unit_id: group.unit_id || null,
         room: roomId,
       };
 
@@ -89,6 +90,7 @@ export function useEditorApi(roomId) {
       user_entered_qty: group.user_entered_qty ?? null,
       color: Array.isArray(group.color) ? group.color : [141, 106, 59],
       type: group.type || "FF&E",
+      unit_id: group.unit_id || null,
     };
 
     const response = await fetch(buildServerUrl(`/groups/${groupId}`), {

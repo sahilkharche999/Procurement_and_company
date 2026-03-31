@@ -213,7 +213,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
                 className="bg-muted/40 border-t-2 font-semibold"
               >
                 <TableCell
-                  colSpan={7}
+                  colSpan={8}
                   className="py-2 pl-3 text-sm text-muted-foreground"
                 >
                   Page {lastGroupKey} — Subtotal
@@ -230,7 +230,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
               key={`header-page-${key}`}
               className="bg-muted/60 hover:bg-muted/60"
             >
-              <TableCell colSpan={10} className="py-2 pl-3">
+              <TableCell colSpan={11} className="py-2 pl-3">
                 <Badge variant="secondary" className="text-xs">
                   Page {key ?? "N/A"}
                 </Badge>
@@ -255,7 +255,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
               key={`header-room-${key}`}
               className="bg-muted/60 hover:bg-muted/60"
             >
-              <TableCell colSpan={10} className="py-2 pl-3">
+              <TableCell colSpan={11} className="py-2 pl-3">
                 <Badge variant="secondary" className="text-xs">
                   {key}
                 </Badge>
@@ -298,7 +298,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
           className="bg-muted/40 border-t-2 font-semibold"
         >
           <TableCell
-            colSpan={7}
+            colSpan={8}
             className="py-2 pl-3 text-sm text-muted-foreground"
           >
             Page {lastGroupKey} — Subtotal
@@ -330,7 +330,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
               className="bg-primary/5 border-t-2 font-semibold"
             >
               <TableCell
-                colSpan={7}
+                colSpan={8}
                 className="py-2 pl-3 text-sm text-muted-foreground italic"
               >
                 {room} — Merchandise Total
@@ -523,6 +523,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
               <TableHead className="w-[120px]">Room</TableHead>
               <TableHead className="w-[60px] text-center">Page</TableHead>
               <TableHead className="w-[80px]">Qty</TableHead>
+              <TableHead className="w-[100px]">Unit</TableHead>
               <TableHead className="w-[100px] text-right">Unit Cost</TableHead>
               <TableHead className="w-[100px] text-right">Extended</TableHead>
               <TableHead className="w-[120px]">Vendor</TableHead>
@@ -532,7 +533,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
           <TableBody>
             {items.length === 0 && !loading && (
               <TableRow>
-                <TableCell colSpan={10} className="h-24 text-center">
+                <TableCell colSpan={11} className="h-24 text-center">
                   No budget items found.
                 </TableCell>
               </TableRow>
@@ -564,6 +565,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
             description: formData.description,
             type: formData.type || "FF&E",
             qty: formData.qty || "1",
+            unit_id: formData.unit_id || null,
             unit_cost: parseFloat(formData.unit_cost) || 0,
             room: formData.room || "",
             vendor: formData.vendor || "",

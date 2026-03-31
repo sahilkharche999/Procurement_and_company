@@ -74,6 +74,15 @@ export function SubItemRow({
       : subitem.room || parentRoomId || "";
   const resolvedRoomName =
     subitem.room_name || rooms.find((r) => r?._id === roomId)?.name || "—";
+  const unitId =
+    (typeof subitem.unit_id === "object"
+      ? subitem.unit_id?._id || ""
+      : subitem.unit_id) ||
+    (typeof subitem.unit === "object"
+      ? subitem.unit?._id || ""
+      : subitem.unit) ||
+    "";
+  const resolvedUnitName = subitem.unit_name || "-";
 
   return (
     <TableRow
@@ -125,6 +134,11 @@ export function SubItemRow({
           />
           <span>{toDisplayQty(subitem.qty)}</span>
         </div>
+      </TableCell>
+
+      {/* Unit */}
+      <TableCell className={`${cellCls} w-[100px]`}>
+        {resolvedUnitName}
       </TableCell>
 
       {/* Unit Cost */}
@@ -224,6 +238,7 @@ export function SubItemRow({
               description: formData.description,
               type: formData.type || "FF&E",
               qty: formData.qty || "1",
+              unit_id: formData.unit_id || null,
               unit_cost:
                 formData.unit_cost !== "" ? Number(formData.unit_cost) : null,
               room: formData.room || roomId,
@@ -237,6 +252,7 @@ export function SubItemRow({
         item={{
           ...subitem,
           room: roomId,
+          unit_id: unitId,
         }}
         rooms={rooms}
         vendors={vendors}

@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from '../ui/select'
 import { useGetAllItemType } from '../../redux/hooks/settings/itemtype/useGetAllItemType'
+import { useGetAllUnits } from '../../redux/hooks/settings/units/useGetAllUnits'
 
 export function CreateBudgetItemDialog({
   open,
@@ -32,6 +33,7 @@ export function CreateBudgetItemDialog({
   vendors = [],
 }) {
   const { items: itemTypes } = useGetAllItemType()
+  const { items: units } = useGetAllUnits()
 
   const defaultFormData = {
     spec_no: '',
@@ -39,6 +41,7 @@ export function CreateBudgetItemDialog({
     qty: '1',
     unit_cost: '',
     room: '',
+    unit_id: '',
     type: 'FF&E',
     vendor: '',
   }
@@ -72,6 +75,7 @@ export function CreateBudgetItemDialog({
             ? defaultFormData.unit_cost
             : String(initialValues.unit_cost),
         room: String(initialValues?.room ?? defaultFormData.room),
+        unit_id: String(initialValues?.unit_id ?? defaultFormData.unit_id),
         type: String(initialValues?.type ?? defaultFormData.type),
         vendor: String(initialValues?.vendor ?? defaultFormData.vendor),
       })
@@ -157,6 +161,21 @@ export function CreateBudgetItemDialog({
               placeholder="1"
               disabled={isLoading}
             />
+          </div>
+
+          {/* Unit */}
+          <div>
+            <label className="text-sm font-medium block mb-1">Unit</label>
+            <SelectRoot value={formData.unit_id} onChange={(e) => handleChange('unit_id', e.target.value)} disabled={isLoading || units.length === 0}>
+              <SelectItem value="">
+                {units.length === 0 ? 'No units available' : 'Select a unit'}
+              </SelectItem>
+              {units.map((u) => (
+                <SelectItem key={u._id} value={u._id}>
+                  {u.name || u._id}
+                </SelectItem>
+              ))}
+            </SelectRoot>
           </div>
 
           {/* Unit Cost */}

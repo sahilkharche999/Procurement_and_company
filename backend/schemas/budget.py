@@ -23,6 +23,7 @@ class BudgetItemCreate(BaseModel):
     page_id: str = ""
     qty: str = "1"
     user_entered_qty: Optional[str] = None
+    unit_id: Optional[str] = None
     unit_cost: Optional[float] = None
     group_id: str = ""  # Linked from front-end mask groups
     type: str = "FF&E"  # Inherited from group type (e.g. FF&E, OFCI)
@@ -40,6 +41,7 @@ class BudgetItemUpdate(BaseModel):
     group_id: Optional[str] = None
     type: Optional[str] = None
     room: Optional[str] = None
+    unit_id: Optional[str] = None
     project: Optional[str] = None
     page_no: Optional[int] = None
     page_id: Optional[str] = None
@@ -57,6 +59,7 @@ class BudgetItemOut(BaseModel):
     project: str = ""
     page_id: str = ""
     room: str = ""
+    unit_id: Optional[str] = None
     spec_no: str = ""
     description: str = ""
     name: str = ""
@@ -72,6 +75,7 @@ class BudgetItemOut(BaseModel):
     is_sub_item: bool = False
     vendor: Optional[str] = None
     vendor_name: Optional[str] = None
+    unit_name: Optional[str] = None
     created_by: str = "user"
     subitems: List['BudgetItemOut'] = []
     created_at: Optional[str] = None
