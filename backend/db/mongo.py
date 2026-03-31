@@ -66,3 +66,7 @@ def get_vendors_collection():
 
 def get_item_types_config_collection():
     return get_db()["item_types_config"]
+
+
+def get_units_config_collection():
+    return get_db()["units_config"]

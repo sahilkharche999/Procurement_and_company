@@ -10,6 +10,7 @@ import { BudgetPage } from "./pages/budget/BudgetPage";
 import { VendorsPage } from "./pages/vendors/VendorsPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { ItemTypesSettingsPage } from "./pages/settings/items-types/ItemTypesSettingsPage";
+import { UnitsSettingsPage } from "./pages/settings/units/UnitsSettingsPage";
 import { FloorPlanPage } from "./pages/floorplan/FloorPlanPage";
 import { ProjectsPage } from "./pages/project/ProjectsPage";
 import { ProjectEditorPage } from "./pages/project/ProjectEditorPage";
@@ -30,6 +31,7 @@ function App() {
           <Route path="price-register" element={<PriceRegisterPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="settings/item-types" element={<ItemTypesSettingsPage />} />
+          <Route path="settings/units" element={<UnitsSettingsPage />} />
           <Route path="editor" element={<EditorLayout />} />
           <Route path="editor/:roomId" element={<EditorLayout />} />
         </Route>

@@ -32,6 +32,26 @@ export function SettingsPage() {
                         <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
                     </div>
                 </Link>
+
+                <Link
+                    to="/settings/units"
+                    className="group rounded-lg border bg-card p-4 hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                >
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-md bg-primary/10 flex items-center justify-center">
+                                <SlidersHorizontal className="h-4 w-4 text-primary" />
+                            </div>
+                            <div>
+                                <h2 className="text-sm font-semibold">Units</h2>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Manage customizable units like Each, Yard, Meter, and more.
+                                </p>
+                            </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-foreground" />
+                    </div>
+                </Link>
             </div>
         </div>
     )
