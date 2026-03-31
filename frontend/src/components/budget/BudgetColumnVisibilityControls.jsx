@@ -24,7 +24,9 @@ export function BudgetColumnVisibilityControls({
           const disableUncheck = checked && visibleCount === 1
 
           return (
-            <label key={col.id} className="flex items-center gap-2 text-xs text-foreground">
+            <label key={col.id} className="flex items-center gap-2
+            
+            text-xs text-foreground">
               <Checkbox
                 checked={checked}
                 onCheckedChange={() => onToggle(col.id)}

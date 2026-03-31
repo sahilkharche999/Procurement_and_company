@@ -1,4 +1,4 @@
-import { useEffect, Fragment, useState } from "react";
+import { useEffect, Fragment, useState, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   Table,
@@ -26,6 +26,9 @@ import {
   FileText,
   Plus,
   Filter,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 
 import { useGetBudgetItems } from "../../redux/hooks/budget/useGetBudgetItems";
@@ -53,6 +56,7 @@ import { SearchInput } from "./SearchInput";
 import { CreateRoomDialog } from "./CreateRoomDialog";
 import { CreateBudgetItemDialog } from "./CreateBudgetItemDialog";
 import { BudgetColumnVisibilityControls } from "./BudgetColumnVisibilityControls";
+import { ExportFileNameDialog } from "./ExportFileNameDialog";
 import {
   BUDGET_TABLE_COLUMNS,
   getDefaultColumnVisibility,
@@ -98,6 +102,28 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
   const [columnVisibility, setColumnVisibility] = useState(
     getDefaultColumnVisibility,
   );
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState(null);
+  const [sortOrder, setSortOrder] = useState(null); // null, 'asc', 'desc'
+
+  const sortedItems = useMemo(() => {
+    if (!sortOrder) return items;
+    return [...items].sort((a, b) => {
+      const valA = String(a.spec_no || "");
+      const valB = String(b.spec_no || "");
+      if (sortOrder === "asc") {
+        return valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' });
+      } else {
+        return valB.localeCompare(valA, undefined, { numeric: true, sensitivity: 'base' });
+      }
+    });
+  }, [items, sortOrder]);
+
+  const toggleSort = () => {
+    if (sortOrder === null) setSortOrder("asc");
+    else if (sortOrder === "asc") setSortOrder("desc");
+    else setSortOrder(null);
+  };
 
   const visibleColumnIds = BUDGET_TABLE_COLUMNS.filter(
     (col) => columnVisibility[col.id],
@@ -212,17 +238,34 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
   const toggleGroupByRoom = (v) => dispatch(setGroupByRoom(v));
 
   // Export
-  const handleExport = async (format) => {
+  const handleExportClick = (format) => {
+    setExportFormat(format);
+    setIsExportDialogOpen(true);
+  };
+
+  const handleConfirmExport = async (fileName) => {
     if (!projectId) return;
+    const format = exportFormat;
     setExporting(format);
     try {
-      if (format === "excel")
-        await exportToExcel(projectId, section, groupByRoom, groupByPage);
-      else await exportToPdf(projectId, section, groupByRoom, groupByPage);
+      if (format === "excel") {
+        await exportToExcel({
+          projectId,
+          section,
+          groupByRoom,
+          groupByPage,
+          columnVisibility,
+          fileName,
+        });
+      } else {
+        // PDF still uses old way for now, or you can update it too.
+        await exportToPdf(projectId, section, groupByRoom, groupByPage);
+      }
     } catch (e) {
       console.error("Export failed:", e);
     } finally {
       setExporting(null);
+      setExportFormat(null);
     }
   };
 
@@ -265,7 +308,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
     let lastGroupKey = null;
     let lastTotal = null;
 
-    items.forEach((item, idx) => {
+    sortedItems.forEach((item, idx) => {
       if (groupByPage) {
         const key = item.page_no;
         if (key !== lastGroupKey) {
@@ -457,7 +500,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
               <DropdownMenuItem
                 onSelect={(e) => {
                   e.preventDefault();
-                  handleExport("excel");
+                  handleExportClick("excel");
                 }}
                 className="gap-2 cursor-pointer"
               >
@@ -470,7 +513,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
               <DropdownMenuItem
                 onSelect={(e) => {
                   e.preventDefault();
-                  handleExport("pdf");
+                  handleExportClick("pdf");
                 }}
                 className="gap-2 cursor-pointer"
               >
@@ -563,13 +606,29 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
             <TableRow>
               {BUDGET_TABLE_COLUMNS.filter((col) => columnVisibility[col.id]).map((col) => (
                 <TableHead key={col.id} className={col.headerClassName}>
-                  {col.label}
+                  {col.id === "specNo" ? (
+                    <div
+                      className="flex items-center gap-1 cursor-pointer select-none group"
+                      onClick={toggleSort}
+                    >
+                      <span>{col.label}</span>
+                      {sortOrder === "asc" ? (
+                        <ArrowUp className="h-3 w-3 text-primary shrink-0" />
+                      ) : sortOrder === "desc" ? (
+                        <ArrowDown className="h-3 w-3 text-primary shrink-0" />
+                      ) : (
+                        <ArrowUpDown className="h-3 w-3 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
+                  ) : (
+                    col.label
+                  )}
                 </TableHead>
               ))}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.length === 0 && !loading && (
+            {sortedItems.length === 0 && !loading && (
               <TableRow>
                 <TableCell colSpan={visibleColumnCount} className="h-24 text-center">
                   No budget items found.
@@ -623,6 +682,12 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
         vendors={vendors}
         isSubItem={false}
         isLoading={false}
+      />
+      <ExportFileNameDialog
+        open={isExportDialogOpen}
+        onOpenChange={setIsExportDialogOpen}
+        onConfirm={handleConfirmExport}
+        defaultName={`budget_${section}_${new Date().toISOString().slice(0, 10)}`}
       />
     </div>
   );
