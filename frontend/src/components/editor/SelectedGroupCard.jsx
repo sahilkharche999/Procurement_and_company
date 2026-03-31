@@ -32,6 +32,7 @@ export default function SelectedGroupCard({
   const [editUnitId, setEditUnitId] = useState(group.unit_id || "");
   const [editDescription, setEditDescription] = useState(group.description || "");
   const [isDirty, setIsDirty] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const colorInputRef = useRef(null);
   const { items: configuredItemTypes = [] } = useGetAllItemType();
   const { items: configuredUnits = [] } = useGetAllUnits();
@@ -67,6 +68,7 @@ export default function SelectedGroupCard({
     setEditUnitId(group.unit_id || "");
     setEditDescription(group.description || "");
     setIsDirty(false);
+    setSaveError("");
     setIsOpen(false); // collapse mask list on group switch
   }, [group.id, group.type, group.description, group.unit_id]); // keyed on id — fires only when a different group is chosen
 
@@ -81,42 +83,52 @@ export default function SelectedGroupCard({
   const handleNameChange = (e) => {
     setEditName(e.target.value);
     setIsDirty(true);
+    setSaveError("");
   };
 
   const handleCodeChange = (e) => {
     setEditCode(e.target.value);
     setIsDirty(true);
+    setSaveError("");
   };
 
   const handleColorChange = (e) => {
     setEditColor(e.target.value);
     setIsDirty(true);
+    setSaveError("");
   };
 
   const handleTypeChange = (e) => {
     setEditType(e.target.value);
     setIsDirty(true);
+    setSaveError("");
   };
 
   const handleUserEnteredQtyChange = (e) => {
     setEditUserEnteredQty(e.target.value);
     setIsDirty(true);
+    setSaveError("");
   };
 
   const handleUnitChange = (e) => {
     setEditUnitId(e.target.value);
     setIsDirty(true);
+    setSaveError("");
   };
 
   const handleDescriptionChange = (e) => {
     setEditDescription(e.target.value);
     setIsDirty(true);
+    setSaveError("");
   };
 
   // ── Save ────────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    if (!editName.trim()) return;
-    const ok = await onUpdate({
+    if (!editName.trim()) {
+      setSaveError("Group name is required.");
+      return;
+    }
+    const result = await onUpdate({
       ...group,
       name: editName.trim(),
       code: editCode.trim(),
@@ -126,7 +138,14 @@ export default function SelectedGroupCard({
       unit_id: editUnitId || null,
       description: editDescription.trim(),
     });
-    if (ok) setIsDirty(false);
+
+    if (result === true || result?.ok) {
+      setIsDirty(false);
+      setSaveError("");
+      return;
+    }
+
+    setSaveError(result?.error || "Failed to update group. Please try again.");
   };
 
   // ── Cancel ──────────────────────────────────────────────────────────────────
@@ -139,6 +158,7 @@ export default function SelectedGroupCard({
     setEditUnitId(group.unit_id || "");
     setEditDescription(group.description || "");
     setIsDirty(false);
+    setSaveError("");
   };
 
   // ── Mask click ──────────────────────────────────────────────────────────────
@@ -289,19 +309,24 @@ export default function SelectedGroupCard({
 
       {/* ── Save / Cancel ────────────────────────────────────────────────────── */}
       {isDirty && (
-        <div className="px-3 pb-2 flex gap-1.5">
-          <button
-            onClick={handleSave}
-            className="flex-1 py-1 text-[11px] font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-          >
-            Save
-          </button>
-          <button
-            onClick={handleCancel}
-            className="flex-1 py-1 text-[11px] font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
+        <div className="px-3 pb-2 space-y-1.5">
+          <div className="flex gap-1.5">
+            <button
+              onClick={handleSave}
+              className="flex-1 py-1 text-[11px] font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            >
+              Save
+            </button>
+            <button
+              onClick={handleCancel}
+              className="flex-1 py-1 text-[11px] font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+          {saveError && (
+            <p className="text-[10px] text-red-600 font-medium">{saveError}</p>
+          )}
         </div>
       )}
 

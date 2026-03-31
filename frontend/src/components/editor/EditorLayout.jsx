@@ -519,7 +519,7 @@ export default function EditorLayout() {
       return createdGroup;
     } catch (err) {
       console.error(err);
-      return null;
+      return { error: err?.message || "Failed to create group" };
     }
   };
 
@@ -543,7 +543,9 @@ export default function EditorLayout() {
         }
       }
 
-      if (!savedGroup) return false;
+      if (!savedGroup) {
+        return { ok: false, error: "Failed to update group" };
+      }
 
       const baseGroups = { ...groups };
       if (previousId !== savedGroup.id) delete baseGroups[previousId];
@@ -555,10 +557,10 @@ export default function EditorLayout() {
         setSelectedGroupId(newSelectedGroupId);
       }
       pushToHistory(newMasks, newGroups);
-      return true;
+      return { ok: true };
     } catch (err) {
       console.error(err);
-      return false;
+      return { ok: false, error: err?.message || "Failed to update group" };
     }
   };
 

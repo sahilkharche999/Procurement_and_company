@@ -93,8 +93,8 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
       type,
     });
 
-    if (!created) {
-      setError("Failed to create group. Please try again.");
+    if (!created?.id) {
+      setError(created?.error || "Failed to create group. Please try again.");
       return;
     }
 

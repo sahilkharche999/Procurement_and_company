@@ -1,6 +1,18 @@
 import { useCallback } from "react";
 import { buildServerUrl } from "../../../config";
 
+async function extractApiError(response, fallbackMessage) {
+  try {
+    const data = await response.json();
+    if (typeof data?.detail === "string" && data.detail.trim()) {
+      return data.detail;
+    }
+  } catch {
+    // no-op
+  }
+  return fallbackMessage;
+}
+
 export function useEditorApi(roomId) {
   const fetchRoomById = useCallback(async () => {
     if (!roomId) throw new Error("Missing room id");
@@ -76,7 +88,9 @@ export function useEditorApi(roomId) {
         body: JSON.stringify(payload),
       });
 
-      if (!response.ok) throw new Error("Failed to create group");
+      if (!response.ok) {
+        throw new Error(await extractApiError(response, "Failed to create group"));
+      }
       return response.json();
     },
     [roomId],
@@ -99,7 +113,9 @@ export function useEditorApi(roomId) {
       body: JSON.stringify(payload),
     });
 
-    if (!response.ok) throw new Error("Failed to update group");
+    if (!response.ok) {
+      throw new Error(await extractApiError(response, "Failed to update group"));
+    }
     return response.json();
   }, []);
 

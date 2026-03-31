@@ -52,6 +52,12 @@ async def export_budget(
     return await svc.export_items(project_id, group_by_room, group_by_page)
 
 
+@router.get("/{project_id}/rooms/{room_id}/items")
+async def list_room_budget_items(project_id: str, room_id: str):
+    """Return all budget items (with populated fields/subitems) for one room."""
+    return await svc.export_items(project_id, room_id=room_id)
+
+
 # ── Item CRUD ─────────────────────────────────────────────────────────────────
 
 @router.post("/{project_id}/item", status_code=201)

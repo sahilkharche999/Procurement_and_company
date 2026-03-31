@@ -1,8 +1,11 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
+import os
 
 from db.mongo import get_rooms_collection
 from schemas.room import RoomCreate
+from services.pdf_processing import LOCAL_FILE_DB
 from services.room_editor_state_service import (
     as_obj_id,
     normalize_room_doc,
@@ -48,6 +51,39 @@ async def create_room(project_id: str, body: RoomCreate):
 @router.get("/{room_id}")
 async def get_room(room_id: str):
     return await fetch_room_or_404(room_id)
+
+
+@router.get("/{room_id}/image")
+async def get_room_image(room_id: str):
+    """
+    Returns the raw room image file for this room.
+    This route is used as a CORS-safe proxy for frontend PDF export flows.
+    """
+    room = await fetch_room_or_404(room_id)
+    image_url = str(room.get("room_image_url") or "").strip()
+    if not image_url:
+        raise HTTPException(status_code=404, detail="Room image not found")
+
+    abs_path = ""
+    if image_url.startswith("/local_file_db/"):
+        rel_path = image_url[len("/local_file_db/"):]
+        abs_path = os.path.join(LOCAL_FILE_DB, rel_path)
+    elif image_url.startswith("/uploads/"):
+        backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        abs_path = os.path.join(backend_dir, image_url.lstrip("/"))
+
+    if not abs_path or not os.path.exists(abs_path):
+        raise HTTPException(status_code=404, detail="Room image file not found")
+
+    ext = os.path.splitext(abs_path)[1].lower()
+    media_type = {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+    }.get(ext, "application/octet-stream")
+
+    return FileResponse(abs_path, media_type=media_type)
 
 
 @router.get("/{room_id}/editor-data/{project_id}")

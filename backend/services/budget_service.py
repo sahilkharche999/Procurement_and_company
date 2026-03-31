@@ -255,6 +255,7 @@ async def export_items(
         project_id: str,
         group_by_room: bool = False,
         group_by_page: bool = False,
+    room_id: str | None = None,
 ) -> dict:
     from db.mongo import (
         get_rooms_collection,
@@ -267,6 +268,11 @@ async def export_items(
 
     col = _col()
     filt = {"project": project_id, "is_sub_item": {"$ne": True}}
+    if room_id:
+        room_values: list = [str(room_id)]
+        if ObjectId.is_valid(str(room_id)):
+            room_values.append(ObjectId(str(room_id)))
+        filt["room"] = {"$in": room_values}
 
     if group_by_page:
         sort = [("page_no", 1), ("order_index", 1)]
