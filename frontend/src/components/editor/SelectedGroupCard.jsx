@@ -1,5 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
+import { useGetAllItemType } from "../../redux/hooks/settings/itemtype/useGetAllItemType";
+import { useGetAllUnits } from "../../redux/hooks/settings/units/useGetAllUnits";
 
 // ─── Hex ↔ RGB helpers ────────────────────────────────────────────────────────
 function rgbToHex([r, g, b]) {
@@ -27,8 +29,35 @@ export default function SelectedGroupCard({
   );
   const [editColor, setEditColor] = useState(rgbToHex(group.color));
   const [editType, setEditType] = useState(group.type || "FF&E");
+  const [editUnitId, setEditUnitId] = useState(group.unit_id || "");
+  const [editDescription, setEditDescription] = useState(group.description || "");
+  const [editSize, setEditSize] = useState(group.size ?? null);
   const [isDirty, setIsDirty] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const colorInputRef = useRef(null);
+  const { items: configuredItemTypes = [] } = useGetAllItemType();
+  const { items: configuredUnits = [] } = useGetAllUnits();
+
+  const typeOptions = useMemo(() => {
+    const fromSettings = configuredItemTypes
+      .map((t) => String(t?.name || "").trim())
+      .filter(Boolean);
+   
+    const currentType = String(editType || "").trim();
+
+    const merged = [...fromSettings];
+    if (currentType) merged.push(currentType);
+
+    return Array.from(new Set(merged));
+  }, [configuredItemTypes, editType]);
+
+  const unitOptions = useMemo(() => {
+    const fromSettings = configuredUnits
+      .map((u) => ({ id: String(u?._id || ""), name: String(u?.name || "").trim() }))
+      .filter((u) => u.id && u.name);
+
+    return fromSettings;
+  }, [configuredUnits]);
 
   // ── Sync fields whenever the selected group changes ──────────────────────────
   useEffect(() => {
@@ -37,9 +66,13 @@ export default function SelectedGroupCard({
     setEditUserEnteredQty(group.user_entered_qty || "");
     setEditColor(rgbToHex(group.color));
     setEditType(group.type || "FF&E");
+    setEditUnitId(group.unit_id || "");
+    setEditDescription(group.description || "");
+    setEditSize(group.size ?? null);
     setIsDirty(false);
+    setSaveError("");
     setIsOpen(false); // collapse mask list on group switch
-  }, [group.id, group.type]); // keyed on id — fires only when a different group is chosen
+  }, [group.id, group.type, group.description, group.unit_id, group.size]); // keyed on id — fires only when a different group is chosen
 
   // Masks that belong to this group
   const groupMasks = masks.filter((m) => m.group_id === group.id);
@@ -52,40 +85,70 @@ export default function SelectedGroupCard({
   const handleNameChange = (e) => {
     setEditName(e.target.value);
     setIsDirty(true);
+    setSaveError("");
   };
 
   const handleCodeChange = (e) => {
     setEditCode(e.target.value);
     setIsDirty(true);
+    setSaveError("");
   };
 
   const handleColorChange = (e) => {
     setEditColor(e.target.value);
     setIsDirty(true);
+    setSaveError("");
   };
 
   const handleTypeChange = (e) => {
     setEditType(e.target.value);
     setIsDirty(true);
+    setSaveError("");
   };
 
   const handleUserEnteredQtyChange = (e) => {
     setEditUserEnteredQty(e.target.value);
     setIsDirty(true);
+    setSaveError("");
+  };
+
+  const handleUnitChange = (e) => {
+    setEditUnitId(e.target.value);
+    setIsDirty(true);
+    setSaveError("");
+  };
+
+  const handleDescriptionChange = (e) => {
+    setEditDescription(e.target.value);
+    setIsDirty(true);
+    setSaveError("");
   };
 
   // ── Save ────────────────────────────────────────────────────────────────────
   const handleSave = async () => {
-    if (!editName.trim()) return;
-    const ok = await onUpdate({
+    if (!editName.trim()) {
+      setSaveError("Group name is required.");
+      return;
+    }
+    const result = await onUpdate({
       ...group,
       name: editName.trim(),
       code: editCode.trim(),
       user_entered_qty: editUserEnteredQty.trim() || null,
       color: hexToRgb(editColor),
       type: editType,
+      unit_id: editUnitId || null,
+      size: editSize,
+      description: editDescription.trim(),
     });
-    if (ok) setIsDirty(false);
+
+    if (result === true || result?.ok) {
+      setIsDirty(false);
+      setSaveError("");
+      return;
+    }
+
+    setSaveError(result?.error || "Failed to update group. Please try again.");
   };
 
   // ── Cancel ──────────────────────────────────────────────────────────────────
@@ -95,7 +158,11 @@ export default function SelectedGroupCard({
     setEditUserEnteredQty(group.user_entered_qty || "");
     setEditColor(rgbToHex(group.color));
     setEditType(group.type || "FF&E");
+    setEditUnitId(group.unit_id || "");
+    setEditDescription(group.description || "");
+    setEditSize(group.size ?? null);
     setIsDirty(false);
+    setSaveError("");
   };
 
   // ── Mask click ──────────────────────────────────────────────────────────────
@@ -167,8 +234,11 @@ export default function SelectedGroupCard({
             onChange={handleTypeChange}
             className="w-full text-xs px-2 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors cursor-pointer"
           >
-            <option value="FF&E">FF&E</option>
-            <option value="OFCI">OFCI</option>
+            {typeOptions.map((typeName) => (
+              <option key={typeName} value={typeName}>
+                {typeName}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -182,6 +252,52 @@ export default function SelectedGroupCard({
             onChange={handleUserEnteredQtyChange}
             placeholder="Quantity override"
             className="w-full text-xs px-2 py-1 border border-gray-200 bg-white font-mono focus:outline-none focus:border-blue-400 transition-colors"
+          />
+        </div>
+
+        {/* Unit */}
+        <div className="space-y-0.5">
+          <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+            Unit
+          </label>
+          <select
+            value={editUnitId}
+            onChange={handleUnitChange}
+            className="w-full text-xs px-2 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors cursor-pointer"
+          >
+            <option value="">No Unit</option>
+            {unitOptions.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Description */}
+        <div className="space-y-0.5">
+          <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+            Description
+          </label>
+          <textarea
+            value={editDescription}
+            onChange={handleDescriptionChange}
+            placeholder="Group description"
+            rows={2}
+            className="w-full text-xs px-2 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors"
+          />
+        </div>
+
+        {/* Size */}
+        <div className="space-y-0.5">
+          <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+            Size (ft)
+          </label>
+          <input
+            value={editSize == null ? "" : String(editSize)}
+            readOnly
+            placeholder="Set via Measure tool"
+            className="w-full text-xs px-2 py-1 border border-gray-200 bg-gray-50 text-gray-600 focus:outline-none"
           />
         </div>
 
@@ -210,19 +326,24 @@ export default function SelectedGroupCard({
 
       {/* ── Save / Cancel ────────────────────────────────────────────────────── */}
       {isDirty && (
-        <div className="px-3 pb-2 flex gap-1.5">
-          <button
-            onClick={handleSave}
-            className="flex-1 py-1 text-[11px] font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-          >
-            Save
-          </button>
-          <button
-            onClick={handleCancel}
-            className="flex-1 py-1 text-[11px] font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
+        <div className="px-3 pb-2 space-y-1.5">
+          <div className="flex gap-1.5">
+            <button
+              onClick={handleSave}
+              className="flex-1 py-1 text-[11px] font-medium bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+            >
+              Save
+            </button>
+            <button
+              onClick={handleCancel}
+              className="flex-1 py-1 text-[11px] font-medium border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+          {saveError && (
+            <p className="text-[10px] text-red-600 font-medium">{saveError}</p>
+          )}
         </div>
       )}
 

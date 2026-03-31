@@ -1,4 +1,5 @@
 import { api } from "../../redux/api/apiClient"
+import { BUDGET_TABLE_COLUMNS } from "./budgetColumns"
 
 /**
  * Fetch all budget items for export (no pagination).
@@ -23,79 +24,113 @@ function fmtCurrency(val) {
 
 // ─── Excel Export ─────────────────────────────────────────────────────────────
 
-export async function exportToExcel(projectId, section, groupByRoom, groupByPage) {
+export async function exportToExcel({
+    projectId,
+    section,
+    groupByRoom,
+    groupByPage,
+    columnVisibility,
+    fileName = `budget_export_${new Date().toISOString().slice(0, 10)}`
+}) {
     const xlsxModule = await import("xlsx")
     const XLSX = xlsxModule.default || xlsxModule
     const data = await fetchExportData(projectId, section, groupByRoom, groupByPage)
     const { items, grand_total, room_totals } = data
 
+    const activeColumns = BUDGET_TABLE_COLUMNS.filter(
+        col => columnVisibility[col.id] !== false && col.id !== 'actions'
+    );
+
     const rows = []
     let prevRoom = null
+
+    // Helper to build a row object based on active columns
+    const buildRow = (item, isSubItem = false) => {
+        const row = {};
+        activeColumns.forEach(col => {
+            let val = "";
+            let prefix = (isSubItem && col.id === "specNo") ? "  ↳ " : "";
+
+            switch (col.id) {
+                case "specNo": val = item.spec_no; break;
+                case "description": val = item.description; break;
+                case "type": val = item.type; break;
+                case "room":
+                    val = isSubItem ? "" : (item.room_name || item.room || "Unassigned Room");
+                    break;
+                case "page": val = item.page_no; break;
+                case "qty": val = item.qty; break;
+                case "unit": val = item.unit_name || item.unit; break;
+                case "unitCost": val = fmtCurrency(item.unit_cost); break;
+                case "extended": val = fmtCurrency(item.extended); break;
+                case "vendor": val = item.vendor_name || item.vendor; break;
+            }
+            row[col.label] = prefix + (val ?? "");
+        });
+        return row;
+    };
 
     for (const item of items) {
         const room = item.room_name || item.room || "Unassigned Room"
 
         if (groupByRoom && room !== prevRoom) {
+            // Room change subtotal
             if (prevRoom && room_totals[prevRoom] != null) {
-                rows.push({
-                    "Spec No": "", Description: "",
-                    Room: `${prevRoom} — Total`, Page: "", Qty: "", "Unit Cost": "",
-                    Extended: fmtCurrency(room_totals[prevRoom]), Hidden: "",
-                })
+                const subtotalRow = {};
+                activeColumns.forEach(col => {
+                    if (col.id === "room" || col.id === "specNo") subtotalRow[col.label] = `── ${prevRoom} Total ──`;
+                    else if (col.id === "extended") subtotalRow[col.label] = fmtCurrency(room_totals[prevRoom]);
+                    else subtotalRow[col.label] = "";
+                });
+                rows.push(subtotalRow);
             }
-            rows.push({
-                "Spec No": `── ${room} ──`,
-                Description: "",
-                Room: "", Page: "", Qty: "", "Unit Cost": "", Extended: "", Hidden: "",
-            })
+            // Room Header
+            const headerRow = {};
+            activeColumns.forEach(col => {
+                if (col.id === "specNo") headerRow[col.label] = `[ ${room.toUpperCase()} ]`;
+                else headerRow[col.label] = "";
+            });
+            rows.push(headerRow);
             prevRoom = room
         }
 
-        rows.push({
-            "Spec No": item.spec_no,
-            Description: item.description,
-            Room: room,
-            Page: item.page_no,
-            Qty: item.qty,
-            "Unit Cost": fmtCurrency(item.unit_cost),
-            Extended: fmtCurrency(item.extended),
-            Hidden: item.hidden_from_total ? "Yes" : "",
-        })
+        rows.push(buildRow(item));
 
         for (const sub of item.subitems || []) {
-            rows.push({
-                "Spec No": `  ↳ ${sub.spec_no || ""}`,
-                Description: sub.description, Room: "", Page: "",
-                Qty: sub.qty,
-                "Unit Cost": fmtCurrency(sub.unit_cost),
-                Extended: fmtCurrency(sub.extended),
-                Hidden: sub.hidden_from_total ? "Yes" : "",
-            })
+            rows.push(buildRow(sub, true));
         }
     }
 
     // Final room subtotal
     if (groupByRoom && prevRoom && room_totals[prevRoom] != null) {
-        rows.push({
-            "Spec No": "", Description: "",
-            Room: `${prevRoom} — Total`, Page: "", Qty: "", "Unit Cost": "",
-            Extended: fmtCurrency(room_totals[prevRoom]), Hidden: "",
-        })
+        const subtotalRow = {};
+        activeColumns.forEach(col => {
+            if (col.id === "room" || col.id === "specNo") subtotalRow[col.label] = `── ${prevRoom} Total ──`;
+            else if (col.id === "extended") subtotalRow[col.label] = fmtCurrency(room_totals[prevRoom]);
+            else subtotalRow[col.label] = "";
+        });
+        rows.push(subtotalRow);
     }
 
     // Grand total row
-    rows.push({
-        "Spec No": "", Description: "",
-        Room: "", Page: "", Qty: "", "Unit Cost": "GRAND TOTAL",
-        Extended: fmtCurrency(grand_total), Hidden: "",
-    })
+    const grandRow = {};
+    activeColumns.forEach(col => {
+        if (col.id === "extended") grandRow[col.label] = fmtCurrency(grand_total);
+        else if (col.id === "unitCost") grandRow[col.label] = "GRAND TOTAL";
+        else grandRow[col.label] = "";
+    });
+    rows.push(grandRow);
 
     const ws = XLSX.utils.json_to_sheet(rows)
-    ws["!cols"] = [
-        { wch: 12 }, { wch: 12 }, { wch: 18 }, { wch: 22 },
-        { wch: 16 }, { wch: 6 }, { wch: 8 }, { wch: 12 },
-        { wch: 14 }, { wch: 8 },
-    ]
+    // Set column widths based on current active columns
+    ws["!cols"] = activeColumns.map(col => {
+        switch (col.id) {
+            case "description": return { wch: 40 };
+            case "room": return { wch: 20 };
+            case "specNo": return { wch: 15 };
+            default: return { wch: 12 };
+        }
+    });
 
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, "Budget")
@@ -105,7 +140,7 @@ export async function exportToExcel(projectId, section, groupByRoom, groupByPage
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `budget_${section}_${new Date().toISOString().slice(0, 10)}.xlsx`
+    a.download = `${fileName}.xlsx`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)

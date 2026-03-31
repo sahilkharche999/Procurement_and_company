@@ -37,6 +37,17 @@ def _serialize(doc: dict) -> dict:
     doc["_id"] = str(doc["_id"])
     if isinstance(doc.get("room"), ObjectId):
         doc["room"] = str(doc["room"])
+    if isinstance(doc.get("unit_id"), ObjectId):
+        doc["unit_id"] = str(doc["unit_id"])
+    # Backward compatibility for legacy docs that may still contain `unit`
+    if not doc.get("unit_id") and doc.get("unit"):
+        if isinstance(doc.get("unit"), ObjectId):
+            doc["unit_id"] = str(doc["unit"])
+        else:
+            doc["unit_id"] = str(doc.get("unit"))
+    doc.pop("unit", None)
+    if isinstance(doc.get("vendor"), ObjectId):
+        doc["vendor"] = str(doc["vendor"])
     return doc
 
 
@@ -50,6 +61,26 @@ def _resolve_room_name(room_value: str, room_map: dict[str, dict]) -> str:
     if ObjectId.is_valid(room_key):
         return "Unknown Room"
     return room_key
+
+
+def _resolve_vendor_name(vendor_value: str, vendor_map: dict[str, dict]) -> str:
+    if not vendor_value:
+        return ""
+    vendor_key = str(vendor_value)
+    vendor_doc = vendor_map.get(vendor_key)
+    if vendor_doc:
+        return vendor_doc.get("company_name") or vendor_key
+    return vendor_key
+
+
+def _resolve_unit_name(unit_value: str, unit_map: dict[str, dict]) -> str:
+    if not unit_value:
+        return ""
+    unit_key = str(unit_value)
+    unit_doc = unit_map.get(unit_key)
+    if unit_doc:
+        return unit_doc.get("name") or unit_key
+    return unit_key
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -75,8 +106,14 @@ async def list_items(
         group_by_page: bool = False,
         rooms_filter: str = "",
 ) -> dict:
-    from db.mongo import get_rooms_collection
+    from db.mongo import (
+        get_rooms_collection,
+        get_units_config_collection,
+        get_vendors_collection,
+    )
     rooms_coll = get_rooms_collection()
+    units_coll = get_units_config_collection()
+    vendors_coll = get_vendors_collection()
 
     col = _col()
     filt: dict = {"project": project_id, "is_sub_item": {"$ne": True}}
@@ -114,8 +151,31 @@ async def list_items(
     else:
         room_map = {}
 
+    # Preload vendors for population
+    vendor_ids = list({ObjectId(d["vendor"]) for d in docs if d.get("vendor") and ObjectId.is_valid(str(d["vendor"]))})
+    if vendor_ids:
+        vendors = await vendors_coll.find({"_id": {"$in": vendor_ids}}).to_list(None)
+        vendor_map = {str(v["_id"]): v for v in vendors}
+    else:
+        vendor_map = {}
+
+    # Preload units for population
+    unit_ids = list({
+        ObjectId(d.get("unit_id") or d.get("unit"))
+        for d in docs
+        if (d.get("unit_id") or d.get("unit"))
+        and ObjectId.is_valid(str(d.get("unit_id") or d.get("unit")))
+    })
+    if unit_ids:
+        units = await units_coll.find({"_id": {"$in": unit_ids}}).to_list(None)
+        unit_map = {str(u["_id"]): u for u in units}
+    else:
+        unit_map = {}
+
     for d in docs:
         d["room_name"] = _resolve_room_name(d.get("room", ""), room_map)
+        d["vendor_name"] = _resolve_vendor_name(d.get("vendor", ""), vendor_map)
+        d["unit_name"] = _resolve_unit_name(d.get("unit_id") or d.get("unit", ""), unit_map)
 
     # Fetch subitems
     all_subitem_ids = []
@@ -128,8 +188,21 @@ async def list_items(
     subitems_map = {}
     if all_subitem_ids:
         sub_docs = await col.find({"_id": {"$in": all_subitem_ids}}).to_list(None)
+        missing_unit_ids = [
+            ObjectId(s.get("unit_id") or s.get("unit"))
+            for s in sub_docs
+            if (s.get("unit_id") or s.get("unit"))
+            and ObjectId.is_valid(str(s.get("unit_id") or s.get("unit")))
+            and str(s.get("unit_id") or s.get("unit")) not in unit_map
+        ]
+        if missing_unit_ids:
+            extra_units = await units_coll.find({"_id": {"$in": list({u for u in missing_unit_ids})}}).to_list(None)
+            for u in extra_units:
+                unit_map[str(u["_id"])] = u
         for s in sub_docs:
             s["room_name"] = _resolve_room_name(s.get("room", ""), room_map)
+            s["vendor_name"] = _resolve_vendor_name(s.get("vendor", ""), vendor_map)
+            s["unit_name"] = _resolve_unit_name(s.get("unit_id") or s.get("unit", ""), unit_map)
             subitems_map[str(s["_id"])] = _serialize(s)
 
     items = []
@@ -182,12 +255,24 @@ async def export_items(
         project_id: str,
         group_by_room: bool = False,
         group_by_page: bool = False,
+    room_id: str | None = None,
 ) -> dict:
-    from db.mongo import get_rooms_collection
+    from db.mongo import (
+        get_rooms_collection,
+        get_units_config_collection,
+        get_vendors_collection,
+    )
     rooms_coll = get_rooms_collection()
+    units_coll = get_units_config_collection()
+    vendors_coll = get_vendors_collection()
 
     col = _col()
     filt = {"project": project_id, "is_sub_item": {"$ne": True}}
+    if room_id:
+        room_values: list = [str(room_id)]
+        if ObjectId.is_valid(str(room_id)):
+            room_values.append(ObjectId(str(room_id)))
+        filt["room"] = {"$in": room_values}
 
     if group_by_page:
         sort = [("page_no", 1), ("order_index", 1)]
@@ -207,8 +292,31 @@ async def export_items(
     else:
         room_map = {}
 
+    # Preload vendors
+    vendor_ids = list({ObjectId(d["vendor"]) for d in docs if d.get("vendor") and ObjectId.is_valid(str(d["vendor"]))})
+    if vendor_ids:
+        vendors = await vendors_coll.find({"_id": {"$in": vendor_ids}}).to_list(None)
+        vendor_map = {str(v["_id"]): v for v in vendors}
+    else:
+        vendor_map = {}
+
+    # Preload units
+    unit_ids = list({
+        ObjectId(d.get("unit_id") or d.get("unit"))
+        for d in docs
+        if (d.get("unit_id") or d.get("unit"))
+        and ObjectId.is_valid(str(d.get("unit_id") or d.get("unit")))
+    })
+    if unit_ids:
+        units = await units_coll.find({"_id": {"$in": unit_ids}}).to_list(None)
+        unit_map = {str(u["_id"]): u for u in units}
+    else:
+        unit_map = {}
+
     for d in docs:
         d["room_name"] = _resolve_room_name(d.get("room", ""), room_map)
+        d["vendor_name"] = _resolve_vendor_name(d.get("vendor", ""), vendor_map)
+        d["unit_name"] = _resolve_unit_name(d.get("unit_id") or d.get("unit", ""), unit_map)
 
     # Resolve subitems properly
     all_subitem_ids = []
@@ -220,8 +328,21 @@ async def export_items(
     subitems_map = {}
     if all_subitem_ids:
         sub_docs = await col.find({"_id": {"$in": all_subitem_ids}}).to_list(None)
+        missing_unit_ids = [
+            ObjectId(s.get("unit_id") or s.get("unit"))
+            for s in sub_docs
+            if (s.get("unit_id") or s.get("unit"))
+            and ObjectId.is_valid(str(s.get("unit_id") or s.get("unit")))
+            and str(s.get("unit_id") or s.get("unit")) not in unit_map
+        ]
+        if missing_unit_ids:
+            extra_units = await units_coll.find({"_id": {"$in": list({u for u in missing_unit_ids})}}).to_list(None)
+            for u in extra_units:
+                unit_map[str(u["_id"])] = u
         for s in sub_docs:
             s["room_name"] = _resolve_room_name(s.get("room", ""), room_map)
+            s["vendor_name"] = _resolve_vendor_name(s.get("vendor", ""), vendor_map)
+            s["unit_name"] = _resolve_unit_name(s.get("unit_id") or s.get("unit", ""), unit_map)
             subitems_map[str(s["_id"])] = _serialize(s)
 
     items = []
@@ -281,12 +402,15 @@ async def create_item(project_id: str, data: dict) -> dict:
         "project": project_id,
         "page_id": data.get("page_id", ""),
         "room": data.get("room", ""),
+        "unit_id": (str(data.get("unit_id")).strip() if data.get("unit_id") is not None else "") or None,
         "spec_no": data.get("spec_no", ""),
         "name": data.get("name", ""),
         "description": data.get("description", ""),
         "group_id": data.get("group_id", ""),
+        "type": data.get("type", "FF&E"),
         "page_no": data.get("page_no"),
         "qty": qty_value,
+        "vendor": data.get("vendor", ""),
         "user_entered_qty": user_entered_qty,
         "unit_cost": data.get("unit_cost"),
         "extended": extended,
@@ -352,6 +476,12 @@ async def update_item(item_id: str, updates: dict) -> dict | None:
         raw_user_qty = updates.get("user_entered_qty")
         updates["user_entered_qty"] = (
             str(raw_user_qty).strip() if raw_user_qty is not None else None
+        ) or None
+
+    if "unit_id" in updates:
+        raw_unit_id = updates.get("unit_id")
+        updates["unit_id"] = (
+            str(raw_unit_id).strip() if raw_unit_id is not None else None
         ) or None
 
     # Merge updates
@@ -726,6 +856,10 @@ async def create_preliminary_budget(project_id: str) -> dict:
 
             group_name: str = str(group.get("name") or "")
             group_desc: str = str(group.get("description") or "")
+            group_type: str = str(group.get("type") or "FF&E")
+            group_unit_id = (
+                str(group.get("unit_id")).strip() if group.get("unit_id") is not None else ""
+            ) or None
 
             # Count masks belonging to this group
             mask_count = mask_count_by_group.get(group_id_val, 0)
@@ -757,6 +891,8 @@ async def create_preliminary_budget(project_id: str) -> dict:
                     "extended": new_extended,
                     "name": group_name,
                     "description": group_desc,
+                    "type": group_type,
+                    "unit_id": group_unit_id,
                     "room": room_id,
                     "page_id": page_id_str,
                     "page_no": page_no_val,
@@ -775,6 +911,8 @@ async def create_preliminary_budget(project_id: str) -> dict:
                     "extended": new_extended,
                     "name": group_name,
                     "description": group_desc,
+                    "type": group_type,
+                    "unit_id": group_unit_id,
                     "room": room_id,
                     "page_id": page_id_str,
                     "page_no": page_no_val,
@@ -796,6 +934,8 @@ async def create_preliminary_budget(project_id: str) -> dict:
                     "name": group_name,
                     "description": group_desc,
                     "group_id": group_id_val,
+                    "type": group_type,
+                    "unit_id": group_unit_id,
                     "room": room_id,  # canonical room id
                     "page_id": page_id_str,  # MongoDB _id of the page
                     "page_no": page_no_val,  # page number (int)

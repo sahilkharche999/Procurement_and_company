@@ -1,4 +1,4 @@
-import { useEffect, Fragment, useState } from "react";
+import { useEffect, Fragment, useState, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   Table,
@@ -26,6 +26,9 @@ import {
   FileText,
   Plus,
   Filter,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
 } from "lucide-react";
 
 import { useGetBudgetItems } from "../../redux/hooks/budget/useGetBudgetItems";
@@ -34,10 +37,12 @@ import { useUpdateBudgetItem } from "../../redux/hooks/budget/useUpdateBudgetIte
 import { useDeleteBudgetItem } from "../../redux/hooks/budget/useDeleteBudgetItem";
 import { useSubItems } from "../../redux/hooks/budget/useSubItems";
 import { useGetRooms } from "../../redux/hooks/project/useGetRooms";
+import { useGetAllVendors } from "../../redux/hooks/vendors/useGetAllVendors";
 import {
   setEditingRowId,
   setSearch,
   setPage,
+  setPageSize,
   setRoomFilter,
   setGroupByPage,
   setGroupByRoom,
@@ -49,6 +54,13 @@ import { BudgetRow } from "./BudgetRow";
 import { PaginationControls } from "./PaginationControls";
 import { SearchInput } from "./SearchInput";
 import { CreateRoomDialog } from "./CreateRoomDialog";
+import { CreateBudgetItemDialog } from "./CreateBudgetItemDialog";
+import { BudgetColumnVisibilityControls } from "./BudgetColumnVisibilityControls";
+import { ExportFileNameDialog } from "./ExportFileNameDialog";
+import {
+  BUDGET_TABLE_COLUMNS,
+  getDefaultColumnVisibility,
+} from "./budgetColumns";
 import { formatCurrency } from "../../lib/utils";
 import { exportToExcel, exportToPdf } from "./exportBudget";
 
@@ -72,7 +84,8 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
   const { update } = useUpdateBudgetItem();
   const { remove } = useDeleteBudgetItem();
   const { addSub, updateSub, deleteSub, detachSub, assignSub } = useSubItems();
-  const { rooms, fetchRooms, createRoom } = useGetRooms(propProjectId);
+  const { rooms, loading: roomsLoading, error: roomsError, fetchRooms, createRoom } = useGetRooms(propProjectId);
+  const { vendors } = useGetAllVendors();
 
   const {
     editingRowId,
@@ -85,16 +98,67 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
   } = useSelector((state) => state.budget);
   const [exporting, setExporting] = useState(null);
   const [createRoomDialogOpen, setCreateRoomDialogOpen] = useState(false);
+  const [createItemDialogOpen, setCreateItemDialogOpen] = useState(false);
+  const [columnVisibility, setColumnVisibility] = useState(
+    getDefaultColumnVisibility,
+  );
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [exportFormat, setExportFormat] = useState(null);
+  const [sortOrder, setSortOrder] = useState(null); // null, 'asc', 'desc'
 
-  // Sync projectId from prop into Redux
+  const sortedItems = useMemo(() => {
+    if (!sortOrder) return items;
+    return [...items].sort((a, b) => {
+      const valA = String(a.spec_no || "");
+      const valB = String(b.spec_no || "");
+      if (sortOrder === "asc") {
+        return valA.localeCompare(valB, undefined, { numeric: true, sensitivity: 'base' });
+      } else {
+        return valB.localeCompare(valA, undefined, { numeric: true, sensitivity: 'base' });
+      }
+    });
+  }, [items, sortOrder]);
+
+  const toggleSort = () => {
+    if (sortOrder === null) setSortOrder("asc");
+    else if (sortOrder === "asc") setSortOrder("desc");
+    else setSortOrder(null);
+  };
+
+  const visibleColumnIds = BUDGET_TABLE_COLUMNS.filter(
+    (col) => columnVisibility[col.id],
+  ).map((col) => col.id);
+  const visibleColumnCount = Math.max(visibleColumnIds.length, 1);
+  const hasColumn = (columnId) => visibleColumnIds.includes(columnId);
+
+  const handleToggleColumn = (columnId) => {
+    setColumnVisibility((prev) => {
+      const currentlyVisible = BUDGET_TABLE_COLUMNS.filter(
+        (col) => prev[col.id],
+      ).length;
+      if (prev[columnId] && currentlyVisible <= 1) return prev;
+      return { ...prev, [columnId]: !prev[columnId] };
+    });
+  };
+
+  const handleResetColumns = () => {
+    setColumnVisibility(getDefaultColumnVisibility());
+  };
+
+  // Sync projectId from prop into Redux and fetch rooms
   useEffect(() => {
-    if (propProjectId && propProjectId !== projectId) {
+    if (propProjectId) {
       dispatch(setProjectIdAction(propProjectId));
-      fetchRooms();
-    } else if (propProjectId) {
+    }
+  }, [propProjectId, dispatch]);
+
+  // Fetch rooms when projectId is set
+  useEffect(() => {
+    if (propProjectId) {
       fetchRooms();
     }
-  }, [propProjectId, projectId, dispatch, fetchRooms]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propProjectId]);
 
   // Re-fetch items whenever the parent signals a refresh (e.g. after budget generation)
   useEffect(() => {
@@ -145,19 +209,8 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
     }
   };
 
-  const handleCreateNew = async () => {
-    const newItem = {
-      spec_no: "New Item",
-      description: "",
-      qty: "1",
-      unit_cost: 0,
-      created_by: "user",
-    };
-    const result = await create(newItem);
-    if (!result.error) {
-      dispatch(setEditingRowId(result.payload._id));
-      refetch();
-    }
+  const handleCreateNew = () => {
+    setCreateItemDialogOpen(true);
   };
 
   const handleToggleHide = async (id) => {
@@ -169,6 +222,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
 
   const handleSearchChange = (val) => dispatch(setSearch(val));
   const handlePageChange = (p) => dispatch(setPage(p));
+  const handlePageSizeChange = (size) => dispatch(setPageSize(size));
 
   const handleToggleRoomFilter = (roomId) => {
     let newFilter = [...(roomFilter || [])];
@@ -184,18 +238,68 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
   const toggleGroupByRoom = (v) => dispatch(setGroupByRoom(v));
 
   // Export
-  const handleExport = async (format) => {
+  const handleExportClick = (format) => {
+    setExportFormat(format);
+    setIsExportDialogOpen(true);
+  };
+
+  const handleConfirmExport = async (fileName) => {
     if (!projectId) return;
+    const format = exportFormat;
     setExporting(format);
     try {
-      if (format === "excel")
-        await exportToExcel(projectId, section, groupByRoom, groupByPage);
-      else await exportToPdf(projectId, section, groupByRoom, groupByPage);
+      if (format === "excel") {
+        await exportToExcel({
+          projectId,
+          section,
+          groupByRoom,
+          groupByPage,
+          columnVisibility,
+          fileName,
+        });
+      } else {
+        // PDF still uses old way for now, or you can update it too.
+        await exportToPdf(projectId, section, groupByRoom, groupByPage);
+      }
     } catch (e) {
       console.error("Export failed:", e);
     } finally {
       setExporting(null);
+      setExportFormat(null);
     }
+  };
+
+  const renderSubtotalRow = (key, label, total, toneClassName) => {
+    if (!hasColumn("extended")) {
+      return (
+        <TableRow key={key} className={toneClassName}>
+          <TableCell colSpan={visibleColumnCount} className="py-2 px-3 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">{label}</span>
+              <span className="font-bold text-primary">{formatCurrency(total)}</span>
+            </div>
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    const extendedIndex = visibleColumnIds.indexOf("extended");
+    const beforeCount = Math.max(extendedIndex, 0);
+    const afterCount = Math.max(visibleColumnCount - extendedIndex - 1, 0);
+
+    return (
+      <TableRow key={key} className={toneClassName}>
+        {beforeCount > 0 && (
+          <TableCell colSpan={beforeCount} className="py-2 pl-3 text-sm text-muted-foreground">
+            {label}
+          </TableCell>
+        )}
+        <TableCell className="py-2 pr-3 text-right font-bold text-primary text-sm">
+          {formatCurrency(total)}
+        </TableCell>
+        {afterCount > 0 && <TableCell colSpan={afterCount} />}
+      </TableRow>
+    );
   };
 
   // ── Group headers + room subtotals ────────────────────────────────────────
@@ -204,27 +308,18 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
     let lastGroupKey = null;
     let lastTotal = null;
 
-    items.forEach((item, idx) => {
+    sortedItems.forEach((item, idx) => {
       if (groupByPage) {
         const key = item.page_no;
         if (key !== lastGroupKey) {
           if (lastGroupKey !== null && lastTotal !== null) {
             rows.push(
-              <TableRow
-                key={`subtotal-page-${lastGroupKey}`}
-                className="bg-muted/40 border-t-2 font-semibold"
-              >
-                <TableCell
-                  colSpan={7}
-                  className="py-2 pl-3 text-sm text-muted-foreground"
-                >
-                  Page {lastGroupKey} — Subtotal
-                </TableCell>
-                <TableCell className="py-2 pr-3 text-right font-bold text-primary text-sm">
-                  {formatCurrency(lastTotal)}
-                </TableCell>
-                <TableCell />
-              </TableRow>,
+              renderSubtotalRow(
+                `subtotal-page-${lastGroupKey}`,
+                `Page ${lastGroupKey} — Subtotal`,
+                lastTotal,
+                "bg-muted/40 border-t-2 font-semibold",
+              ),
             );
           }
           rows.push(
@@ -232,7 +327,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
               key={`header-page-${key}`}
               className="bg-muted/60 hover:bg-muted/60"
             >
-              <TableCell colSpan={9} className="py-2 pl-3">
+              <TableCell colSpan={visibleColumnCount} className="py-2 pl-3">
                 <Badge variant="secondary" className="text-xs">
                   Page {key ?? "N/A"}
                 </Badge>
@@ -257,7 +352,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
               key={`header-room-${key}`}
               className="bg-muted/60 hover:bg-muted/60"
             >
-              <TableCell colSpan={9} className="py-2 pl-3">
+              <TableCell colSpan={visibleColumnCount} className="py-2 pl-3">
                 <Badge variant="secondary" className="text-xs">
                   {key}
                 </Badge>
@@ -287,6 +382,8 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
           onAssignSubItem={assignSub}
           rootItems={items}
           rooms={rooms}
+          vendors={vendors}
+          visibleColumns={columnVisibility}
         />,
       );
     });
@@ -294,21 +391,12 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
     // Final group subtotal
     if (groupByPage && lastGroupKey !== null && lastTotal !== null) {
       rows.push(
-        <TableRow
-          key={`subtotal-page-${lastGroupKey}-last`}
-          className="bg-muted/40 border-t-2 font-semibold"
-        >
-          <TableCell
-            colSpan={7}
-            className="py-2 pl-3 text-sm text-muted-foreground"
-          >
-            Page {lastGroupKey} — Subtotal
-          </TableCell>
-          <TableCell className="py-2 pr-3 text-right font-bold text-primary text-sm">
-            {formatCurrency(lastTotal)}
-          </TableCell>
-          <TableCell />
-        </TableRow>,
+        renderSubtotalRow(
+          `subtotal-page-${lastGroupKey}-last`,
+          `Page ${lastGroupKey} — Subtotal`,
+          lastTotal,
+          "bg-muted/40 border-t-2 font-semibold",
+        ),
       );
     }
     if (groupByRoom) {
@@ -326,21 +414,12 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
       uniqueRooms.forEach((room) => {
         if (roomTotals[room] != null) {
           rows.push(
-            <TableRow
-              key={`subtotal-room-${room}`}
-              className="bg-primary/5 border-t-2 font-semibold"
-            >
-              <TableCell
-                colSpan={7}
-                className="py-2 pl-3 text-sm text-muted-foreground italic"
-              >
-                {room} — Merchandise Total
-              </TableCell>
-              <TableCell className="py-2 pr-3 text-right font-bold text-primary text-sm">
-                {formatCurrency(roomTotals[room])}
-              </TableCell>
-              <TableCell />
-            </TableRow>,
+            renderSubtotalRow(
+              `subtotal-room-${room}`,
+              `${room} — Merchandise Total`,
+              roomTotals[room],
+              "bg-primary/5 border-t-2 font-semibold",
+            ),
           );
         }
       });
@@ -421,7 +500,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
               <DropdownMenuItem
                 onSelect={(e) => {
                   e.preventDefault();
-                  handleExport("excel");
+                  handleExportClick("excel");
                 }}
                 className="gap-2 cursor-pointer"
               >
@@ -434,7 +513,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
               <DropdownMenuItem
                 onSelect={(e) => {
                   e.preventDefault();
-                  handleExport("pdf");
+                  handleExportClick("pdf");
                 }}
                 className="gap-2 cursor-pointer"
               >
@@ -513,25 +592,45 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
         )}
       </div>
 
+      <BudgetColumnVisibilityControls
+        columns={BUDGET_TABLE_COLUMNS}
+        visibility={columnVisibility}
+        onToggle={handleToggleColumn}
+        onReset={handleResetColumns}
+      />
+
       {/* Table */}
       <div className="rounded-md border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[100px]">Spec No</TableHead>
-              <TableHead className="max-w-[200px]">Description</TableHead>
-              <TableHead className="w-[120px]">Room</TableHead>
-              <TableHead className="w-[60px] text-center">Page</TableHead>
-              <TableHead className="w-[80px]">Qty</TableHead>
-              <TableHead className="w-[100px] text-right">Unit Cost</TableHead>
-              <TableHead className="w-[100px] text-right">Extended</TableHead>
-              <TableHead className="w-[150px] text-right">Actions</TableHead>
+              {BUDGET_TABLE_COLUMNS.filter((col) => columnVisibility[col.id]).map((col) => (
+                <TableHead key={col.id} className={col.headerClassName}>
+                  {col.id === "specNo" ? (
+                    <div
+                      className="flex items-center gap-1 cursor-pointer select-none group"
+                      onClick={toggleSort}
+                    >
+                      <span>{col.label}</span>
+                      {sortOrder === "asc" ? (
+                        <ArrowUp className="h-3 w-3 text-primary shrink-0" />
+                      ) : sortOrder === "desc" ? (
+                        <ArrowDown className="h-3 w-3 text-primary shrink-0" />
+                      ) : (
+                        <ArrowUpDown className="h-3 w-3 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </div>
+                  ) : (
+                    col.label
+                  )}
+                </TableHead>
+              ))}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {items.length === 0 && !loading && (
+            {sortedItems.length === 0 && !loading && (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
+                <TableCell colSpan={visibleColumnCount} className="h-24 text-center">
                   No budget items found.
                 </TableCell>
               </TableRow>
@@ -547,12 +646,48 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
         pageSize={pageSize}
         total={total}
         onPageChange={handlePageChange}
+        onPageSizeChange={handlePageSizeChange}
       />
       {/* Modals & Dialogs */}
       <CreateRoomDialog
         open={createRoomDialogOpen}
         onOpenChange={setCreateRoomDialogOpen}
         onCreateRoom={createRoom}
+      />
+      <CreateBudgetItemDialog
+        open={createItemDialogOpen}
+        onOpenChange={setCreateItemDialogOpen}
+        onConfirm={async (formData) => {
+          const newItem = {
+            spec_no: formData.spec_no || "",
+            description: formData.description,
+            type: formData.type || "FF&E",
+            qty: formData.qty || "1",
+            unit_id: formData.unit_id || null,
+            unit_cost: parseFloat(formData.unit_cost) || 0,
+            room: formData.room || "",
+            vendor: formData.vendor || "",
+            created_by: "user",
+          };
+          const result = await create(newItem);
+          if (!result.error) {
+            dispatch(setEditingRowId(result.payload._id));
+            refetch();
+            setCreateItemDialogOpen(false);
+          }
+        }}
+        title="Add New Budget Item"
+        description="Fill in the details for the new budget item."
+        rooms={rooms}
+        vendors={vendors}
+        isSubItem={false}
+        isLoading={false}
+      />
+      <ExportFileNameDialog
+        open={isExportDialogOpen}
+        onOpenChange={setIsExportDialogOpen}
+        onConfirm={handleConfirmExport}
+        defaultName={`budget_${section}_${new Date().toISOString().slice(0, 10)}`}
       />
     </div>
   );

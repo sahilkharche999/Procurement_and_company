@@ -12,7 +12,9 @@ export function useGetRooms(projectId) {
         setError(null)
         try {
             const res = await api.get(`/rooms/project/${projectId}`)
-            setRooms(res.data)
+            // Handle both array response and object with data property
+            const roomsData = Array.isArray(res.data) ? res.data : res.data?.rooms || res.data?.data || []
+            setRooms(roomsData)
         } catch (err) {
             console.error("Failed to fetch rooms:", err)
             setError(err.response?.data?.detail || err.message)

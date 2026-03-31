@@ -5,6 +5,7 @@ Pydantic models for room documents.
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
+from typing import Optional
 
 
 class RoomBase(BaseModel):
@@ -14,6 +15,7 @@ class RoomBase(BaseModel):
     is_included_in_budget: bool = False
     image_width: int = 0
     image_height: int = 0
+    scale_factor_feet_per_pixel: Optional[float] = None
 
 
 class RoomCreate(RoomBase):

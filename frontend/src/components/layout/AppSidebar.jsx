@@ -24,7 +24,6 @@ import {
 
 const NAV_ITEMS = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
-    { title: "Procurement", url: "/procurement", icon: ShoppingCart },
     { title: "Floor Plans", url: "/floor-plans", icon: FileText },
     { title: "Projects", url: "/projects", icon: FolderOpen },
     { title: "Price Register", url: "/price-register", icon: Tags },

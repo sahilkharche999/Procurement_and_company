@@ -32,13 +32,14 @@ async def create_budget(project_id: str):
 async def list_budget(
         project_id: str,
         page: int = Query(1, ge=1),
+        page_size: int = Query(12, ge=1),
         search: str = Query(""),
         group_by_room: bool = Query(False),
         group_by_page: bool = Query(False),
         rooms: str = Query(""),
 ):
     return await svc.list_items(
-        project_id, search, page, 12, group_by_room, group_by_page, rooms
+        project_id, search, page, page_size, group_by_room, group_by_page, rooms
     )
 
 
@@ -51,6 +52,12 @@ async def export_budget(
     return await svc.export_items(project_id, group_by_room, group_by_page)
 
 
+@router.get("/{project_id}/rooms/{room_id}/items")
+async def list_room_budget_items(project_id: str, room_id: str):
+    """Return all budget items (with populated fields/subitems) for one room."""
+    return await svc.export_items(project_id, room_id=room_id)
+
+
 # ── Item CRUD ─────────────────────────────────────────────────────────────────
 
 @router.post("/{project_id}/item", status_code=201)
@@ -59,12 +66,20 @@ async def create_budget_item(project_id: str, body: BudgetItemCreate):
     # Backward-compatible alias support for clients sending room_id
     if not data.get("room") and data.get("room_id"):
         data["room"] = str(data.get("room_id"))
+    # Backward-compatible alias support for old clients sending unit
+    if not data.get("unit_id") and data.get("unit"):
+        data["unit_id"] = str(data.get("unit"))
+    data.pop("unit", None)
     return await svc.create_item(project_id, data)
 
 
 @router.put("/{project_id}/item/{item_id}")
 async def update_budget_item(project_id: str, item_id: str, body: BudgetItemUpdate):
     updates = body.model_dump(exclude_none=True)
+    # Backward-compatible alias support for old clients sending unit
+    if not updates.get("unit_id") and updates.get("unit"):
+        updates["unit_id"] = str(updates.get("unit"))
+    updates.pop("unit", None)
     result = await svc.update_item(item_id, updates)
     if result is None:
         raise HTTPException(404, "Budget item not found")

@@ -17,11 +17,13 @@ import {
   Check,
   XCircle,
   RefreshCw,
+  FileDown,
 } from "lucide-react";
 import { api } from "../../redux/api/apiClient";
 import { useProjects } from "../../redux/hooks/project/useProjects";
 import { useNavigate } from "react-router-dom";
 import { buildServerUrl } from "../../config";
+import { exportRoomDetailsPdf } from "../../lib/exportRoomPdf";
 
 /* ══════════════════════════════════════════════════════════════════════════
    LIGHTBOX — full-screen image viewer
@@ -282,6 +284,8 @@ export function RoomProcessorTab({ project }) {
   const [roomStatus, setRoomStatus] = useState({});
   const [roomBudgetInclude, setRoomBudgetInclude] = useState({});
   const [roomBudgetLoading, setRoomBudgetLoading] = useState({});
+  const [roomExportLoading, setRoomExportLoading] = useState({});
+  const [roomExportError, setRoomExportError] = useState({});
 
   const getRoomKey = (room) => room.id || room._id || room.name;
 
@@ -337,6 +341,24 @@ export function RoomProcessorTab({ project }) {
         ...prev,
         [roomId]: { status: "error", progress: 0, error: err.message },
       }));
+    }
+  };
+
+  const handleExportRoom = async (room) => {
+    const roomKey = getRoomKey(room);
+    if (!roomKey || !projectId) return;
+
+    try {
+      setRoomExportLoading((prev) => ({ ...prev, [roomKey]: true }));
+      setRoomExportError((prev) => ({ ...prev, [roomKey]: "" }));
+      await exportRoomDetailsPdf({ projectId, room });
+    } catch (err) {
+      setRoomExportError((prev) => ({
+        ...prev,
+        [roomKey]: err?.message || "Export failed",
+      }));
+    } finally {
+      setRoomExportLoading((prev) => ({ ...prev, [roomKey]: false }));
     }
   };
 
@@ -412,6 +434,8 @@ export function RoomProcessorTab({ project }) {
                 const isIncludedInBudget =
                   roomBudgetInclude[roomKey] ?? !!room.is_included_in_budget;
                 const isBudgetToggleLoading = !!roomBudgetLoading[roomKey];
+                const isExporting = !!roomExportLoading[roomKey];
+                const exportError = roomExportError[roomKey] || "";
                 return (
                   <div
                     key={roomKey}
@@ -457,7 +481,7 @@ export function RoomProcessorTab({ project }) {
                       </div>
                     </div>
 
-                    <div className="px-2.5 py-2 border-t flex flex-col justify-between gap-2 min-w-0 bg-card border-border/50 h-[80px]">
+                    <div className="px-2.5 py-2 border-t flex flex-col justify-between gap-2 min-w-0 bg-card border-border/50">
                       <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                         <span
                           className="flex-1 min-w-0 text-[12px] font-semibold font-mono truncate leading-tight text-foreground/80 whitespace-normal"
@@ -564,9 +588,31 @@ export function RoomProcessorTab({ project }) {
                               </div>
                             )}
                             {reprocessButton}
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="shrink-0 px-2 h-7 border-violet-500/50 text-violet-600 hover:text-violet-700 hover:bg-violet-50 transition-colors"
+                              title="Export Room PDF"
+                              disabled={isExporting}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleExportRoom(room);
+                              }}
+                            >
+                              {isExporting ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <FileDown className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
                           </div>
                         );
                       })()}
+                      {exportError && (
+                        <p className="text-[10px] text-red-500 truncate" title={exportError}>
+                          {exportError}
+                        </p>
+                      )}
                     </div>
                   </div>
                 );
