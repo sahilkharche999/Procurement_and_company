@@ -31,6 +31,7 @@ export default function SelectedGroupCard({
   const [editType, setEditType] = useState(group.type || "FF&E");
   const [editUnitId, setEditUnitId] = useState(group.unit_id || "");
   const [editDescription, setEditDescription] = useState(group.description || "");
+  const [editSize, setEditSize] = useState(group.size ?? null);
   const [isDirty, setIsDirty] = useState(false);
   const [saveError, setSaveError] = useState("");
   const colorInputRef = useRef(null);
@@ -67,10 +68,11 @@ export default function SelectedGroupCard({
     setEditType(group.type || "FF&E");
     setEditUnitId(group.unit_id || "");
     setEditDescription(group.description || "");
+    setEditSize(group.size ?? null);
     setIsDirty(false);
     setSaveError("");
     setIsOpen(false); // collapse mask list on group switch
-  }, [group.id, group.type, group.description, group.unit_id]); // keyed on id — fires only when a different group is chosen
+  }, [group.id, group.type, group.description, group.unit_id, group.size]); // keyed on id — fires only when a different group is chosen
 
   // Masks that belong to this group
   const groupMasks = masks.filter((m) => m.group_id === group.id);
@@ -136,6 +138,7 @@ export default function SelectedGroupCard({
       color: hexToRgb(editColor),
       type: editType,
       unit_id: editUnitId || null,
+      size: editSize,
       description: editDescription.trim(),
     });
 
@@ -157,6 +160,7 @@ export default function SelectedGroupCard({
     setEditType(group.type || "FF&E");
     setEditUnitId(group.unit_id || "");
     setEditDescription(group.description || "");
+    setEditSize(group.size ?? null);
     setIsDirty(false);
     setSaveError("");
   };
@@ -281,6 +285,19 @@ export default function SelectedGroupCard({
             placeholder="Group description"
             rows={2}
             className="w-full text-xs px-2 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors"
+          />
+        </div>
+
+        {/* Size */}
+        <div className="space-y-0.5">
+          <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+            Size (ft)
+          </label>
+          <input
+            value={editSize == null ? "" : String(editSize)}
+            readOnly
+            placeholder="Set via Measure tool"
+            className="w-full text-xs px-2 py-1 border border-gray-200 bg-gray-50 text-gray-600 focus:outline-none"
           />
         </div>
 

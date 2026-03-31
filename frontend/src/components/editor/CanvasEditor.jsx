@@ -37,8 +37,12 @@ export default function CanvasEditor({
   onCtrlClickMask, // (maskId, { x, y }) => void — Ctrl+Click in reassign mode
   isDrawMode,
   isLabelDrawMode,
+  isSetScaleMode,
+  isMeasureMode,
   onSaveNewMask, // (polygonArray) => void
   onCreateLabelMask, // (polygonArray) => void
+  onSetScaleLineComplete, // (pixelDistance) => void
+  onMeasureLineComplete, // (pixelDistance) => void
   onUpdateMaskPosition, // (maskId, dx, dy) => void
   onUpdateMaskPolygons, // (maskId, newPolygons) => void
   bgImageUrl,
@@ -59,10 +63,18 @@ export default function CanvasEditor({
   // ── Drawing state ────────────────────────────────────────────────────────
   const [currentPolygon, setCurrentPolygon] = useState([]); // Array of {x, y, isCurve}
   const [mousePos, setMousePos] = useState(null);
+  const [lineStart, setLineStart] = useState(null);
+  const [lineEnd, setLineEnd] = useState(null);
 
   useEffect(() => {
     if (trRef.current) {
-      if (changeGroupMode || isDrawMode || isLabelDrawMode) {
+      if (
+        changeGroupMode ||
+        isDrawMode ||
+        isLabelDrawMode ||
+        isSetScaleMode ||
+        isMeasureMode
+      ) {
         trRef.current.nodes([]);
       } else {
         const nodes = (selectedMaskIds || [])
@@ -72,17 +84,25 @@ export default function CanvasEditor({
         trRef.current.getLayer().batchDraw();
       }
     }
-  }, [selectedMaskIds, masks, changeGroupMode, isDrawMode, isLabelDrawMode]);
+  }, [
+    selectedMaskIds,
+    masks,
+    changeGroupMode,
+    isDrawMode,
+    isLabelDrawMode,
+    isSetScaleMode,
+    isMeasureMode,
+  ]);
 
   useEffect(() => {
     const container = stageRef.current?.container();
     if (!container) return;
-    if (isDrawMode || isLabelDrawMode) {
+    if (isDrawMode || isLabelDrawMode || isSetScaleMode || isMeasureMode) {
       container.style.cursor = "crosshair";
       return;
     }
     container.style.cursor = "default";
-  }, [isDrawMode, isLabelDrawMode]);
+  }, [isDrawMode, isLabelDrawMode, isSetScaleMode, isMeasureMode]);
 
   useEffect(() => {
     if (!isDrawMode) {
@@ -92,9 +112,37 @@ export default function CanvasEditor({
   }, [isDrawMode]);
 
   useEffect(() => {
-    if (!isDrawMode) return;
+    if (!isSetScaleMode && !isMeasureMode) {
+      setLineStart(null);
+      setLineEnd(null);
+    }
+  }, [isSetScaleMode, isMeasureMode]);
+
+  const currentLineMode = isSetScaleMode ? "set-scale" : isMeasureMode ? "measure" : null;
+
+  useEffect(() => {
+    if (!isDrawMode && !currentLineMode) return;
+
     const handleKeyDown = (e) => {
       if (e.key === "Enter") {
+        if (currentLineMode) {
+          if (lineStart && lineEnd) {
+            const dx = lineEnd.x - lineStart.x;
+            const dy = lineEnd.y - lineStart.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            if (distance > 0) {
+              if (currentLineMode === "set-scale") {
+                onSetScaleLineComplete?.(distance);
+              } else {
+                onMeasureLineComplete?.(distance);
+              }
+            }
+          }
+          setLineStart(null);
+          setLineEnd(null);
+          return;
+        }
+
         if (currentPolygon.length >= 3) {
           const flatPoints = generateSmoothPolygon([...currentPolygon], true);
           onSaveNewMask([flatPoints]);
@@ -102,9 +150,18 @@ export default function CanvasEditor({
         setCurrentPolygon([]);
         setMousePos(null);
       } else if (e.key === "Escape") {
+        if (currentLineMode) {
+          setLineStart(null);
+          setLineEnd(null);
+          return;
+        }
         setCurrentPolygon([]);
         setMousePos(null);
       } else if (e.key === "Backspace" || e.key === "Delete") {
+        if (currentLineMode) {
+          setLineEnd(null);
+          return;
+        }
         setCurrentPolygon((prev) =>
           prev.length >= 1 ? prev.slice(0, -1) : prev,
         );
@@ -112,7 +169,16 @@ export default function CanvasEditor({
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isDrawMode, currentPolygon, onSaveNewMask]);
+  }, [
+    isDrawMode,
+    currentLineMode,
+    currentPolygon,
+    lineStart,
+    lineEnd,
+    onSaveNewMask,
+    onSetScaleLineComplete,
+    onMeasureLineComplete,
+  ]);
 
   // ── Zoom ──────────────────────────────────────────────────────────────────
   const handleWheel = (e) => {
@@ -134,7 +200,7 @@ export default function CanvasEditor({
 
   // ── Shift-drag mouse handlers ─────────────────────────────────────────────
   const handleMouseDown = (e) => {
-    if (isLabelDrawMode) return;
+    if (isLabelDrawMode || isSetScaleMode || isMeasureMode) return;
 
     if (e.evt.shiftKey) {
       // In reassign mode: Shift+Click on a MASK should toggle selection (handled
@@ -162,6 +228,10 @@ export default function CanvasEditor({
       setMousePos({ x: pos.x, y: pos.y });
     }
 
+    if (currentLineMode && lineStart) {
+      setLineEnd({ x: pos.x, y: pos.y });
+    }
+
     if (!isSelecting) return;
     e.evt.preventDefault();
     const start = selectionStartRef.current;
@@ -183,7 +253,7 @@ export default function CanvasEditor({
 
   // ── Per-mask click handler ────────────────────────────────────────────────
   const handleMaskClick = (e, mask) => {
-    if (isLabelDrawMode) {
+    if (isLabelDrawMode || currentLineMode) {
       e.cancelBubble = true;
       return;
     }
@@ -260,7 +330,7 @@ export default function CanvasEditor({
       scaleY={scale}
       x={position.x}
       y={position.y}
-      draggable={!isSelecting && !isDrawMode && !isLabelDrawMode}
+      draggable={!isSelecting && !isDrawMode && !isLabelDrawMode && !currentLineMode}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
@@ -272,6 +342,7 @@ export default function CanvasEditor({
           !isSelecting &&
           !isDrawMode &&
           !isLabelDrawMode &&
+          !currentLineMode &&
           e.target === e.target.getStage()
         ) {
           setPosition({ x: e.target.x(), y: e.target.y() });
@@ -291,6 +362,18 @@ export default function CanvasEditor({
           return;
         }
 
+        if (currentLineMode) {
+          if (e.evt.button !== 0) return;
+          const pos = e.target.getStage().getRelativePointerPosition();
+          if (!lineStart) {
+            setLineStart({ x: pos.x, y: pos.y });
+            setLineEnd({ x: pos.x, y: pos.y });
+          } else {
+            setLineEnd({ x: pos.x, y: pos.y });
+          }
+          return;
+        }
+
         if (isLabelDrawMode) {
           if (e.evt.button !== 0) return;
           const pos = e.target.getStage().getRelativePointerPosition();
@@ -306,6 +389,11 @@ export default function CanvasEditor({
         }
       }}
       onContextMenu={(e) => {
+        if (currentLineMode) {
+          e.evt.preventDefault();
+          return;
+        }
+
         if (isLabelDrawMode) {
           e.evt.preventDefault();
           return;
@@ -374,6 +462,7 @@ export default function CanvasEditor({
                   isSelected &&
                   !isDrawMode &&
                   !isLabelDrawMode &&
+                  !currentLineMode &&
                   !changeGroupMode
                 }
                 onClick={(e) => handleMaskClick(e, mask)}
@@ -435,7 +524,7 @@ export default function CanvasEditor({
                   fill={fillColor}
                   stroke={strokeColor}
                   strokeWidth={strokeWidth}
-                  listening={!isDrawMode && !isLabelDrawMode}
+                  listening={!isDrawMode && !isLabelDrawMode && !currentLineMode}
                 />
 
                 <Text
@@ -467,6 +556,7 @@ export default function CanvasEditor({
                   isSelected &&
                   !isDrawMode &&
                   !isLabelDrawMode &&
+                  !currentLineMode &&
                   !changeGroupMode
                 }
                 onClick={(e) => handleMaskClick(e, mask)}
@@ -527,7 +617,7 @@ export default function CanvasEditor({
                     stroke={strokeColor}
                     strokeWidth={strokeWidth}
                     closed
-                    listening={!isDrawMode && !isLabelDrawMode}
+                    listening={!isDrawMode && !isLabelDrawMode && !currentLineMode}
                   />
                 ))}
 
@@ -566,7 +656,7 @@ export default function CanvasEditor({
         )}
 
         {/* Transformer (bounding box + rotation handles) */}
-        {!isDrawMode && !isLabelDrawMode && !changeGroupMode && (
+        {!isDrawMode && !isLabelDrawMode && !currentLineMode && !changeGroupMode && (
           <Transformer
             ref={trRef}
             flipEnabled={false}
@@ -583,6 +673,44 @@ export default function CanvasEditor({
       </Layer>
 
       {/* Drawing Layer */}
+      {currentLineMode && lineStart && (
+        <Layer>
+          <Line
+            points={
+              lineEnd
+                ? [lineStart.x, lineStart.y, lineEnd.x, lineEnd.y]
+                : [lineStart.x, lineStart.y, lineStart.x, lineStart.y]
+            }
+            stroke={currentLineMode === "set-scale" ? "#f59e0b" : "#10b981"}
+            strokeWidth={3 / scale}
+            lineCap="round"
+          />
+          <Circle
+            x={lineStart.x}
+            y={lineStart.y}
+            radius={4 / scale}
+            fill={currentLineMode === "set-scale" ? "#f59e0b" : "#10b981"}
+          />
+          {lineEnd && (
+            <>
+              <Circle
+                x={lineEnd.x}
+                y={lineEnd.y}
+                radius={4 / scale}
+                fill={currentLineMode === "set-scale" ? "#f59e0b" : "#10b981"}
+              />
+              <Text
+                x={(lineStart.x + lineEnd.x) / 2 + 6}
+                y={(lineStart.y + lineEnd.y) / 2 - 16}
+                text={`${Math.sqrt((lineEnd.x - lineStart.x) ** 2 + (lineEnd.y - lineStart.y) ** 2).toFixed(1)} px`}
+                fontSize={12 / scale}
+                fill="#111827"
+              />
+            </>
+          )}
+        </Layer>
+      )}
+
       {isDrawMode && (
         <Layer>
           {currentPolygon.length > 0 && (

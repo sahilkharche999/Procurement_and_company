@@ -13,6 +13,7 @@ from services.room_editor_state_service import (
     build_editor_state_payload,
     persist_editor_state,
     update_room_budget_inclusion,
+    update_room_scale_factor,
 )
 
 
@@ -41,6 +42,7 @@ async def create_room(project_id: str, body: RoomCreate):
         "is_included_in_budget": body.is_included_in_budget,
         "image_width": body.image_width,
         "image_height": body.image_height,
+        "scale_factor_feet_per_pixel": body.scale_factor_feet_per_pixel,
     }
     res = await rooms_coll.insert_one(new_room)
     new_room["_id"] = str(res.inserted_id)
@@ -110,6 +112,10 @@ class IncludeInBudgetUpdate(BaseModel):
     is_included_in_budget: bool
 
 
+class RoomScaleUpdate(BaseModel):
+    scale_factor_feet_per_pixel: float | None
+
+
 @router.put("/{room_id}/masks")
 async def update_room_masks(room_id: str, body: MasksUpdate):
     """
@@ -134,4 +140,15 @@ async def update_room_include_in_budget(room_id: str, body: IncludeInBudgetUpdat
     return await update_room_budget_inclusion(
         room_id=room_id,
         is_included_in_budget=body.is_included_in_budget,
+    )
+
+
+@router.patch("/{room_id}/scale")
+async def update_room_scale(room_id: str, body: RoomScaleUpdate):
+    if body.scale_factor_feet_per_pixel is not None and body.scale_factor_feet_per_pixel <= 0:
+        raise HTTPException(status_code=400, detail="scale_factor_feet_per_pixel must be > 0")
+
+    return await update_room_scale_factor(
+        room_id=room_id,
+        scale_factor_feet_per_pixel=body.scale_factor_feet_per_pixel,
     )

@@ -8,6 +8,8 @@ import GroupDialog from "./dialogs/GroupDialog";
 import CreateGroupDialog from "./dialogs/CreateGroupDialog";
 import GroupAssignPopover from "./GroupAssignPopover";
 import AssignDrawnMaskDialog from "./dialogs/AssignDrawnMaskDialog";
+import SetScaleDialog from "./dialogs/SetScaleDialog";
+import MeasureAssignDialog from "./dialogs/MeasureAssignDialog";
 import FloatingToolbar from "./components/FloatingToolbar";
 import { buildServerUrl } from "../../config";
 import { useEditorApi } from "../../redux/hooks/editor/useEditorApi";
@@ -19,6 +21,7 @@ export default function EditorLayout() {
     fetchEditorState,
     persistEditorState,
     setRoomBudgetInclusion,
+    setRoomScaleFactor: updateRoomScaleFactor,
     createGroup,
     updateGroup,
     deleteGroup,
@@ -27,6 +30,7 @@ export default function EditorLayout() {
   const [projectId, setProjectId] = useState("");
   const [roomIncludedInBudget, setRoomIncludedInBudget] = useState(false);
   const [roomIncludeLoading, setRoomIncludeLoading] = useState(false);
+  const [roomScaleFactor, setRoomScaleFactor] = useState(null);
 
   // ─── Core state ────────────────────────────────────────────────────────────
   const [groups, setGroups] = useState(() => {
@@ -65,6 +69,11 @@ export default function EditorLayout() {
         setProjectId(projectIdFromRoom);
 
         setRoomIncludedInBudget(!!roomData.is_included_in_budget);
+        setRoomScaleFactor(
+          roomData.scale_factor_feet_per_pixel != null
+            ? Number(roomData.scale_factor_feet_per_pixel)
+            : null,
+        );
 
         if (roomData.room_image_url) {
           setBgImageUrl(buildServerUrl(roomData.room_image_url));
@@ -124,8 +133,12 @@ export default function EditorLayout() {
   // ─── Drawing mode state ────────────────────────────────────────────────────
   const [isDrawMode, setIsDrawMode] = useState(false);
   const [isLabelDrawMode, setIsLabelDrawMode] = useState(false);
+  const [isSetScaleMode, setIsSetScaleMode] = useState(false);
+  const [isMeasureMode, setIsMeasureMode] = useState(false);
   const [pendingMaskPolygons, setPendingMaskPolygons] = useState(null);
   const [pendingMaskType, setPendingMaskType] = useState("custom");
+  const [pendingScaleLinePixels, setPendingScaleLinePixels] = useState(null);
+  const [pendingMeasuredFeet, setPendingMeasuredFeet] = useState(null);
   const [saveStatus, setSaveStatus] = useState(null); // null | 'saved'
   const [clipboardMasks, setClipboardMasks] = useState([]);
 
@@ -149,6 +162,7 @@ export default function EditorLayout() {
       color: Array.isArray(raw.color) ? raw.color : [141, 106, 59],
       type: raw.type || "FF&E",
       unit_id: raw.unit_id || null,
+      size: raw.size ?? null,
       room: raw.room || roomId || "",
       project: raw.project || "",
     };
@@ -230,6 +244,63 @@ export default function EditorLayout() {
     },
     [roomId, projectId, setRoomBudgetInclusion],
   );
+
+  const handleSetScaleLineComplete = async (pixelDistance) => {
+    if (!pixelDistance || pixelDistance <= 0) {
+      return;
+    }
+    setPendingScaleLinePixels(pixelDistance);
+  };
+
+  const handleConfirmScale = async (knownFeet) => {
+    if (!pendingScaleLinePixels || pendingScaleLinePixels <= 0) return;
+    const scaleFactor = knownFeet / pendingScaleLinePixels;
+    try {
+      const updatedRoom = await updateRoomScaleFactor(scaleFactor);
+      setRoomScaleFactor(Number(updatedRoom?.scale_factor_feet_per_pixel || scaleFactor));
+      setSaveStatus(`Scale set: 1 px = ${scaleFactor.toFixed(4)} ft`);
+      setTimeout(() => setSaveStatus(null), 2200);
+      setIsSetScaleMode(false);
+    } catch (err) {
+      console.error(err);
+      setSaveStatus("Failed to save scale");
+      setTimeout(() => setSaveStatus(null), 2200);
+    } finally {
+      setPendingScaleLinePixels(null);
+    }
+  };
+
+  const handleMeasureLineComplete = (pixelDistance) => {
+    if (!roomScaleFactor || roomScaleFactor <= 0) {
+      setSaveStatus("Set scale first to use Measure mode");
+      setTimeout(() => setSaveStatus(null), 2200);
+      return;
+    }
+    const measuredFeet = pixelDistance * roomScaleFactor;
+    setPendingMeasuredFeet(measuredFeet);
+  };
+
+  const handleAssignMeasuredSize = async (groupId) => {
+    if (!pendingMeasuredFeet && pendingMeasuredFeet !== 0) return;
+    const group = groups[groupId];
+    if (!group) return;
+
+    const result = await handleGroupUpdated({
+      ...group,
+      size: Number(pendingMeasuredFeet.toFixed(3)),
+    });
+
+    if (result?.ok) {
+      setSelectedGroupId(groupId);
+      setPendingMeasuredFeet(null);
+      setIsMeasureMode(false);
+      setSaveStatus("Measured size saved to group");
+      setTimeout(() => setSaveStatus(null), 2200);
+    } else {
+      setSaveStatus(result?.error || "Failed to assign measured size");
+      setTimeout(() => setSaveStatus(null), 2200);
+    }
+  };
 
   const moveSelectedMasksBy = useCallback(
     (dx, dy) => {
@@ -683,6 +754,11 @@ export default function EditorLayout() {
           setIsDrawMode={setIsDrawMode}
           isLabelDrawMode={isLabelDrawMode}
           setIsLabelDrawMode={setIsLabelDrawMode}
+          isSetScaleMode={isSetScaleMode}
+          setIsSetScaleMode={setIsSetScaleMode}
+          isMeasureMode={isMeasureMode}
+          setIsMeasureMode={setIsMeasureMode}
+          roomScaleFactor={roomScaleFactor}
         />
 
         <CanvasEditor
@@ -699,8 +775,12 @@ export default function EditorLayout() {
           onCtrlClickMask={handleCtrlClickMask}
           isDrawMode={isDrawMode}
           isLabelDrawMode={isLabelDrawMode}
+          isSetScaleMode={isSetScaleMode}
+          isMeasureMode={isMeasureMode}
           onSaveNewMask={handleSaveNewMask}
           onCreateLabelMask={handlePlaceLabelMask}
+          onSetScaleLineComplete={handleSetScaleLineComplete}
+          onMeasureLineComplete={handleMeasureLineComplete}
           onUpdateMaskPosition={handleUpdateMaskPosition}
           onUpdateMaskPolygons={handleUpdateMaskPolygons}
           bgImageUrl={bgImageUrl}
@@ -760,6 +840,21 @@ export default function EditorLayout() {
         />
       )}
 
+      <SetScaleDialog
+        open={pendingScaleLinePixels != null}
+        pixelDistance={pendingScaleLinePixels || 0}
+        onClose={() => setPendingScaleLinePixels(null)}
+        onConfirm={handleConfirmScale}
+      />
+
+      <MeasureAssignDialog
+        open={pendingMeasuredFeet != null}
+        measuredFeet={pendingMeasuredFeet || 0}
+        groups={groups}
+        onClose={() => setPendingMeasuredFeet(null)}
+        onAssign={handleAssignMeasuredSize}
+      />
+
       {/* ── Save Notification ────────────────────────────────────────────── */}
       {saveStatus && (
         <div className="absolute bottom-6 right-6 z-100 bg-emerald-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -778,7 +873,9 @@ export default function EditorLayout() {
           <span className="text-sm font-medium">
             {saveStatus === "copied"
               ? "Copied to clipboard"
-              : "Saved to local storage"}
+              : saveStatus === "saved"
+                ? "Saved to local storage"
+                : saveStatus}
           </span>
         </div>
       )}

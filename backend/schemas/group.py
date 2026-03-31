@@ -17,6 +17,7 @@ class GroupBase(BaseModel):
     type: str = "FF&E"
     unit_id: Optional[str] = None
     user_entered_qty: Optional[str] = None
+    size: Optional[float] = None
     room: str = ""
     project: str = ""
 
@@ -42,6 +43,7 @@ class GroupUpdate(BaseModel):
     type: str | None = None
     unit_id: Optional[str] = None
     user_entered_qty: Optional[str] = None
+    size: Optional[float] = None
 
     @field_validator("color")
     @classmethod

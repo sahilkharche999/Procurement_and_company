@@ -33,6 +33,10 @@ def normalize_room_doc(room_doc: dict) -> dict:
     room_doc["project"] = str(room_doc.get("project", ""))
     room_doc["image_width"] = int(room_doc.get("image_width", 0) or 0)
     room_doc["image_height"] = int(room_doc.get("image_height", 0) or 0)
+    raw_scale = room_doc.get("scale_factor_feet_per_pixel")
+    room_doc["scale_factor_feet_per_pixel"] = (
+        float(raw_scale) if raw_scale is not None else None
+    )
     return room_doc
 
 
@@ -71,6 +75,7 @@ async def build_editor_state_payload(room_id: str, project_id: str) -> dict:
             "type": group.get("type", "FF&E"),
             "unit_id": str(group.get("unit_id")) if group.get("unit_id") else None,
             "user_entered_qty": group.get("user_entered_qty"),
+            "size": group.get("size"),
             "description": group.get("description", ""),
             "room": str(group.get("room", room_id)),
             "project": str(group.get("project", project_id)),
@@ -121,6 +126,7 @@ async def persist_editor_state(room_id: str, project_id: str, groups: dict, mask
             "type": g_data.get("type", "FF&E"),
             "unit_id": (str(g_data.get("unit_id")).strip() if g_data.get("unit_id") is not None else "") or None,
             "user_entered_qty": g_data.get("user_entered_qty"),
+            "size": g_data.get("size"),
             "description": g_data.get("description", ""),
             "room": str(room_id),
             "project": str(project_id),
@@ -229,6 +235,25 @@ async def update_room_budget_inclusion(room_id: str, is_included_in_budget: bool
     result = await rooms_coll.update_one(
         {"_id": obj_id},
         {"$set": {"is_included_in_budget": is_included_in_budget}},
+    )
+
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Room not found.")
+
+    updated = await rooms_coll.find_one({"_id": obj_id})
+    if not updated:
+        raise HTTPException(status_code=404, detail="Room not found.")
+
+    return normalize_room_doc(updated)
+
+
+async def update_room_scale_factor(room_id: str, scale_factor_feet_per_pixel: float | None) -> dict:
+    rooms_coll = get_rooms_collection()
+    obj_id = as_obj_id(room_id)
+
+    result = await rooms_coll.update_one(
+        {"_id": obj_id},
+        {"$set": {"scale_factor_feet_per_pixel": scale_factor_feet_per_pixel}},
     )
 
     if result.matched_count == 0:

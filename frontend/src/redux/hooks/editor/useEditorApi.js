@@ -69,6 +69,21 @@ export function useEditorApi(roomId) {
     [roomId],
   );
 
+  const setRoomScaleFactor = useCallback(async (scaleFactorFeetPerPixel) => {
+    const response = await fetch(buildServerUrl(`/rooms/${roomId}/scale`), {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        scale_factor_feet_per_pixel: scaleFactorFeetPerPixel,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(await extractApiError(response, "Failed to update room scale"));
+    }
+    return response.json();
+  }, [roomId]);
+
   const createGroup = useCallback(
     async (group) => {
       const payload = {
@@ -79,6 +94,7 @@ export function useEditorApi(roomId) {
         color: Array.isArray(group.color) ? group.color : [141, 106, 59],
         type: group.type || "FF&E",
         unit_id: group.unit_id || null,
+        size: group.size ?? null,
         room: roomId,
       };
 
@@ -105,6 +121,7 @@ export function useEditorApi(roomId) {
       color: Array.isArray(group.color) ? group.color : [141, 106, 59],
       type: group.type || "FF&E",
       unit_id: group.unit_id || null,
+      size: group.size ?? null,
     };
 
     const response = await fetch(buildServerUrl(`/groups/${groupId}`), {
@@ -134,6 +151,7 @@ export function useEditorApi(roomId) {
     fetchEditorState,
     persistEditorState,
     setRoomBudgetInclusion,
+    setRoomScaleFactor,
     createGroup,
     updateGroup,
     deleteGroup,
