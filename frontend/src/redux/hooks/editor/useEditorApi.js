@@ -112,6 +112,36 @@ export function useEditorApi(roomId) {
     [roomId],
   );
 
+  const createSubgroup = useCallback(
+    async (group) => {
+      const payload = {
+        name: group.name || "",
+        description: group.description || "",
+        code: group.code || "",
+        user_entered_qty: group.user_entered_qty ?? null,
+        color: Array.isArray(group.color) ? group.color : [141, 106, 59],
+        type: group.type || "FF&E",
+        unit_id: group.unit_id || null,
+        size: group.size ?? null,
+        parent_group: group.parent_group || null,
+        is_subgroup: true,
+        room: roomId,
+      };
+
+      const response = await fetch(buildServerUrl("/groups/subgroup"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(await extractApiError(response, "Failed to create subgroup"));
+      }
+      return response.json();
+    },
+    [roomId],
+  );
+
   const updateGroup = useCallback(async (groupId, group) => {
     const payload = {
       name: group.name || "",
@@ -153,6 +183,7 @@ export function useEditorApi(roomId) {
     setRoomBudgetInclusion,
     setRoomScaleFactor,
     createGroup,
+    createSubgroup,
     updateGroup,
     deleteGroup,
   };

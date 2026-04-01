@@ -18,6 +18,8 @@ class GroupBase(BaseModel):
     unit_id: Optional[str] = None
     user_entered_qty: Optional[str] = None
     size: Optional[float] = None
+    parent_group: Optional[str] = None
+    is_subgroup: bool = False
     room: str = ""
     project: str = ""
 
@@ -44,6 +46,8 @@ class GroupUpdate(BaseModel):
     unit_id: Optional[str] = None
     user_entered_qty: Optional[str] = None
     size: Optional[float] = None
+    parent_group: Optional[str] = None
+    is_subgroup: Optional[bool] = None
 
     @field_validator("color")
     @classmethod

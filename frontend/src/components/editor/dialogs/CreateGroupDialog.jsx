@@ -1,5 +1,5 @@
 // export { default } from "../CreateGroupDialog";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -34,7 +34,16 @@ const PRESETS = [
   "#10b981",
 ];
 
-export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
+export default function CreateGroupDialog({
+  open,
+  onClose,
+  onGroupCreated,
+  title = "Create New Group",
+  descriptionText = "Define a name, code, and colour for the new group.",
+  submitLabel = "Create Group",
+  initialType = "FF&E",
+  extraPayload = null,
+}) {
   const { items: configuredItemTypes = [] } = useGetAllItemType();
 
   const [name, setName] = useState("");
@@ -42,8 +51,12 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
   const [code, setCode] = useState("");
   const [userEnteredQty, setUserEnteredQty] = useState("");
   const [color, setColor] = useState("#3b82f6");
-  const [type, setType] = useState("FF&E");
+  const [type, setType] = useState(initialType || "FF&E");
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setType(initialType || "FF&E");
+  }, [initialType]);
 
   const typeOptions = useMemo(() => {
     const fromSettings = configuredItemTypes
@@ -65,7 +78,7 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
     setCode("");
     setUserEnteredQty("");
     setColor("#3b82f6");
-    setType("FF&E");
+    setType(initialType || "FF&E");
     setError("");
   };
 
@@ -91,6 +104,7 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
       user_entered_qty: userEnteredQty.trim() || null,
       color: hexToRgb(color),
       type,
+      ...(extraPayload || {}),
     });
 
     if (!created?.id) {
@@ -108,10 +122,10 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
         {/* ── Header ──────────────────────────────────────────── */}
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-100">
           <DialogTitle className="text-base font-semibold text-gray-900 tracking-tight">
-            Create New Group
+            {title}
           </DialogTitle>
           <p className="text-xs text-gray-500 mt-0.5">
-            Define a name, code, and colour for the new group.
+            {descriptionText}
           </p>
         </DialogHeader>
 
@@ -268,7 +282,7 @@ export default function CreateGroupDialog({ open, onClose, onGroupCreated }) {
             onClick={handleCreate}
             className="rounded-none text-xs bg-blue-600 hover:bg-blue-700 text-white"
           >
-            Create Group
+            {submitLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -822,6 +822,15 @@ async def create_preliminary_budget(project_id: str) -> dict:
 
         rooms_processed += 1
 
+        top_groups = [g for g in groups_docs if not bool(g.get("is_subgroup", False))]
+        sub_groups = [
+            g
+            for g in groups_docs
+            if bool(g.get("is_subgroup", False)) and str(g.get("parent_group") or "").strip()
+        ]
+
+        group_to_budget_id: dict[str, str] = {}
+
         # -- Resolve page_id and page_no for this room via the diagram chain --
         # Chain: room.diagram (ObjectId) -> diagram.page (ObjectId) -> page.page_no (int)
         room_name = room.get("name") or room.get("room_name", "")
@@ -843,8 +852,8 @@ async def create_preliminary_budget(project_id: str) -> dict:
 
         print(f"[BudgetGen]  -> room_name={room_name!r}, page_id={page_id_str!r}, page_no={page_no_val!r}")
 
-        # 3. For each group, count masks and upsert budget item
-        for group in groups_docs:
+        # 3. For each top-level group, count masks and upsert budget item
+        for group in top_groups:
             group_id_val = str(group.get("_id", ""))
 
             code_raw = group.get("code")
@@ -923,6 +932,7 @@ async def create_preliminary_budget(project_id: str) -> dict:
                 await sync_price_item_from_budget(updated_doc)
 
                 updated_count += 1
+                group_to_budget_id[group_id_val] = str(existing.get("_id"))
                 print(f"[BudgetGen]    -> SYNCED qty to {qty_str!r}, room={room_name!r} ({room_id}), page_no={page_no_val!r}")
 
             else:
@@ -955,8 +965,165 @@ async def create_preliminary_budget(project_id: str) -> dict:
                 new_doc["_id"] = str(result.inserted_id)
                 await sync_price_item_from_budget(new_doc)
                 created_count += 1
+                group_to_budget_id[group_id_val] = str(result.inserted_id)
                 print(
                     f"[BudgetGen]    -> CREATED _id={result.inserted_id}, room={room_name!r} ({room_id}), page_no={page_no_val!r}")
+
+        # 4. Create/update sub-group budget subitems and attach to parent item
+        parent_to_subitem_ids: dict[str, list[str]] = {}
+        known_parent_item_ids: set[str] = set(group_to_budget_id.values())
+
+        for subgroup in sub_groups:
+            subgroup_id = str(subgroup.get("_id", ""))
+            parent_group_id = str(subgroup.get("parent_group") or "").strip()
+            parent_item_id = group_to_budget_id.get(parent_group_id)
+
+            if not parent_item_id:
+                parent_existing = await col.find_one(
+                    {
+                        "project": project_id,
+                        "group_id": parent_group_id,
+                        "is_sub_item": {"$ne": True},
+                    },
+                    {"_id": 1},
+                )
+                if parent_existing:
+                    parent_item_id = str(parent_existing.get("_id"))
+                    group_to_budget_id[parent_group_id] = parent_item_id
+
+            if not parent_item_id:
+                print(f"[BudgetGen]    -> Skipping subgroup {subgroup_id}: parent group item not found")
+                continue
+
+            known_parent_item_ids.add(parent_item_id)
+
+            code_raw = subgroup.get("code")
+            code = str(code_raw or "").strip()
+            if not code:
+                print(f"[BudgetGen]    -> Skipping subgroup {subgroup_id}: empty code")
+                continue
+
+            subgroup_name = str(subgroup.get("name") or "")
+            subgroup_desc = str(subgroup.get("description") or "")
+            subgroup_type = str(subgroup.get("type") or "FF&E")
+            subgroup_unit_id = (
+                str(subgroup.get("unit_id")).strip() if subgroup.get("unit_id") is not None else ""
+            ) or None
+            raw_sub_user_qty = subgroup.get("user_entered_qty")
+            subgroup_user_qty = (
+                str(raw_sub_user_qty).strip() if raw_sub_user_qty is not None else ""
+            ) or None
+
+            sub_mask_count = mask_count_by_group.get(subgroup_id, 0)
+            sub_qty_str = str(max(sub_mask_count, 1))
+
+            existing_sub = await col.find_one(
+                {
+                    "project": project_id,
+                    "group_id": subgroup_id,
+                    "is_sub_item": True,
+                }
+            )
+
+            if existing_sub:
+                effective_qty_for_math = subgroup_user_qty or existing_sub.get("user_entered_qty") or sub_qty_str
+                new_extended = _calc_extended(str(effective_qty_for_math), existing_sub.get("unit_cost"))
+                updated_at = _now()
+                updates = {
+                    "spec_no": code,
+                    "qty": sub_qty_str,
+                    "extended": new_extended,
+                    "name": subgroup_name,
+                    "description": subgroup_desc,
+                    "type": subgroup_type,
+                    "unit_id": subgroup_unit_id,
+                    "room": room_id,
+                    "page_id": page_id_str,
+                    "page_no": page_no_val,
+                    "updated_at": updated_at,
+                    "parent_item_id": parent_item_id,
+                }
+                if subgroup_user_qty is not None:
+                    updates["user_entered_qty"] = subgroup_user_qty
+
+                await col.update_one({"_id": existing_sub["_id"]}, {"$set": updates})
+
+                updated_doc = dict(existing_sub)
+                updated_doc.update(updates)
+                await sync_price_item_from_budget(updated_doc)
+
+                subitem_id = str(existing_sub.get("_id"))
+                updated_count += 1
+            else:
+                now = _now()
+                new_sub_doc = {
+                    "project": project_id,
+                    "spec_no": code,
+                    "name": subgroup_name,
+                    "description": subgroup_desc,
+                    "group_id": subgroup_id,
+                    "type": subgroup_type,
+                    "unit_id": subgroup_unit_id,
+                    "room": room_id,
+                    "page_id": page_id_str,
+                    "page_no": page_no_val,
+                    "qty": sub_qty_str,
+                    "user_entered_qty": subgroup_user_qty,
+                    "unit_cost": None,
+                    "extended": None,
+                    "order_index": await _max_order(project_id) + 1,
+                    "hidden_from_total": False,
+                    "is_sub_item": True,
+                    "created_by": "system",
+                    "subitems": [],
+                    "parent_item_id": parent_item_id,
+                    "created_at": now,
+                    "updated_at": now,
+                }
+                insert_sub_res = await col.insert_one(new_sub_doc)
+                new_sub_doc["_id"] = str(insert_sub_res.inserted_id)
+                await sync_price_item_from_budget(new_sub_doc)
+                subitem_id = str(insert_sub_res.inserted_id)
+                created_count += 1
+
+            parent_to_subitem_ids.setdefault(parent_item_id, []).append(subitem_id)
+
+        for parent_item_id in known_parent_item_ids:
+            if not ObjectId.is_valid(parent_item_id):
+                continue
+
+            subitem_ids = parent_to_subitem_ids.get(parent_item_id, [])
+
+            parent_doc = await col.find_one({"_id": ObjectId(parent_item_id)})
+            if not parent_doc:
+                continue
+
+            existing_subitems = [s for s in parent_doc.get("subitems", []) if isinstance(s, str)]
+            desired_set = set(subitem_ids)
+            preserved_non_system = []
+            if existing_subitems:
+                existing_sub_docs = await col.find(
+                    {"_id": {"$in": [ObjectId(s) for s in existing_subitems if ObjectId.is_valid(s)]}},
+                    {"created_by": 1},
+                ).to_list(None)
+                created_by_map = {str(d["_id"]): d.get("created_by") for d in existing_sub_docs}
+                for sid in existing_subitems:
+                    if sid in desired_set:
+                        continue
+                    if sid in created_by_map and created_by_map.get(sid) != "system":
+                        preserved_non_system.append(sid)
+
+            merged = []
+            seen_sub = set()
+            for sid in [*preserved_non_system, *subitem_ids]:
+                if sid not in seen_sub:
+                    seen_sub.add(sid)
+                    merged.append(sid)
+
+            await col.update_one(
+                {"_id": ObjectId(parent_item_id)},
+                {"$set": {"subitems": merged, "updated_at": _now()}},
+            )
 
     summary = (f"Budget generation complete. {created_count} items created, "
                f"{updated_count} items updated across {rooms_processed} rooms. "

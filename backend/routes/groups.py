@@ -55,6 +55,8 @@ def _serialize_group(doc: dict) -> dict:
     d["unit_id"] = str(raw_unit_id) if raw_unit_id else None
     d["user_entered_qty"] = d.get("user_entered_qty")
     d["size"] = d.get("size")
+    d["parent_group"] = str(d.get("parent_group")) if d.get("parent_group") else None
+    d["is_subgroup"] = bool(d.get("is_subgroup", False))
     d["room"] = str(d.get("room", ""))
     d["project"] = str(d.get("project", ""))
     return d
@@ -124,11 +126,68 @@ async def create_group(body: GroupCreate):
 
     doc = body.model_dump()
     doc["code"] = str(doc.get("code", "")).strip()
+    doc["parent_group"] = (
+        str(doc.get("parent_group")).strip() if doc.get("parent_group") else None
+    ) or None
+    doc["is_subgroup"] = bool(doc.get("is_subgroup", False))
     doc["room"] = str(room_id)
     doc["project"] = project_id
     res = await coll.insert_one(doc)
     doc["_id"] = str(res.inserted_id)
     return doc
+
+
+@router.post("/subgroup", status_code=201)
+async def create_subgroup(body: GroupCreate):
+    coll = get_groups_collection()
+    rooms_coll = get_rooms_collection()
+
+    room_id = body.room
+    if not room_id:
+        raise HTTPException(status_code=400, detail="room is required")
+
+    parent_group_id = str(body.parent_group or "").strip()
+    if not parent_group_id:
+        raise HTTPException(status_code=400, detail="parent_group is required")
+
+    parent = await coll.find_one({"_id": _as_obj_id(parent_group_id)})
+    if not parent:
+        raise HTTPException(status_code=404, detail="Parent group not found")
+
+    if str(parent.get("room", "")) != str(room_id):
+        raise HTTPException(status_code=400, detail="Parent group does not belong to provided room")
+
+    room_doc = await rooms_coll.find_one({"_id": _as_obj_id(room_id)})
+    if not room_doc:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    project_id = str(room_doc.get("project", ""))
+    if not project_id:
+        raise HTTPException(status_code=400, detail="Room does not have a valid project")
+
+    duplicate = await _find_duplicate_group_code(
+        coll,
+        room_id=str(room_id),
+        code=body.code,
+    )
+    if duplicate:
+        raise HTTPException(
+            status_code=409,
+            detail="Group code already exists in this room. Please use a unique spec number.",
+        )
+
+    doc = body.model_dump()
+    doc["code"] = str(doc.get("code", "")).strip()
+    doc["parent_group"] = parent_group_id
+    doc["is_subgroup"] = True
+    doc["room"] = str(room_id)
+    doc["project"] = project_id
+
+    res = await coll.insert_one(doc)
+    created = await coll.find_one({"_id": res.inserted_id})
+    if not created:
+        raise HTTPException(status_code=500, detail="Failed to create subgroup")
+    return _serialize_group(created)
 
 
 @router.put("/{group_id}")
