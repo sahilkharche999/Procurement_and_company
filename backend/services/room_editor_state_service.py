@@ -94,6 +94,8 @@ async def build_editor_state_payload(room_id: str, project_id: str) -> dict:
                 "source": mask.get("source", "system"),
                 "type": mask_type,
                 "description": mask.get("description", ""),
+                "parent_mask": str(mask.get("parent_mask")) if mask.get("parent_mask") else None,
+                "is_sub_mask": bool(mask.get("is_sub_mask", False)),
             }
         )
 
@@ -182,6 +184,8 @@ async def persist_editor_state(room_id: str, project_id: str, groups: dict, mask
             "polygons": mask.get("polygons", []),
             "source": mask.get("source", "user"),
             "mask_type": mask_type,
+            "parent_mask": str(mask.get("parent_mask")).strip() if mask.get("parent_mask") else None,
+            "is_sub_mask": bool(mask.get("is_sub_mask", False)),
         }
 
         incoming_mask_id = str(mask.get("id", ""))
@@ -203,6 +207,8 @@ async def persist_editor_state(room_id: str, project_id: str, groups: dict, mask
                 "source": mask_doc["source"],
                 "type": mask_doc["mask_type"],
                 "description": mask_doc["description"],
+                "parent_mask": mask_doc["parent_mask"],
+                "is_sub_mask": mask_doc["is_sub_mask"],
             }
         )
 
