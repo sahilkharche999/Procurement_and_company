@@ -660,6 +660,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
         onConfirm={async (formData) => {
           const newItem = {
             spec_no: formData.spec_no || "",
+            name: formData.name || "",
             description: formData.description,
             type: formData.type || "FF&E",
             qty: formData.qty || "1",

@@ -101,6 +101,11 @@ export function SubItemRow({
         </div>
       </TableCell>}
 
+      {/* Name */}
+      {isVisible("name") && <TableCell className={`${cellCls} max-w-35 truncate`}>
+        <span>{subitem.name || "-"}</span>
+      </TableCell>}
+
       {/* Description */}
       {isVisible("description") && <TableCell className={`${cellCls} max-w-50 truncate`}>
         <span>{subitem.description}</span>
@@ -238,6 +243,7 @@ export function SubItemRow({
             setUpdating(true);
             const payload = {
               spec_no: formData.spec_no,
+              name: formData.name || "",
               description: formData.description,
               type: formData.type || "FF&E",
               unit_id: formData.unit_id || null,

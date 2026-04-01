@@ -1,5 +1,6 @@
 export const BUDGET_TABLE_COLUMNS = [
   { id: "specNo", label: "Spec No", headerClassName: "w-[100px]" },
+  { id: "name", label: "Name", headerClassName: "w-[140px]" },
   { id: "description", label: "Description", headerClassName: "max-w-[200px]" },
   { id: "type", label: "Type", headerClassName: "w-24" },
   { id: "room", label: "Room", headerClassName: "w-[120px]" },
