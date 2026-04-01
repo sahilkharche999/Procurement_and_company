@@ -23,6 +23,7 @@ export default function SelectedGroupCard({
   setEditorMode, // to ensure we're in group mode when mask is clicked
 }) {
   const [isOpen, setIsOpen] = useState(false); // mask dropdown
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [editName, setEditName] = useState(group.name);
   const [editCode, setEditCode] = useState(group.code || "");
   const [editUserEnteredQty, setEditUserEnteredQty] = useState(
@@ -174,9 +175,9 @@ export default function SelectedGroupCard({
   };
 
   return (
-    <div className="mx-3 mt-4 mb-3 border border-blue-200 bg-blue-50/40 text-sm font-sans">
+    <div className="mx-3 mt-3 mb-2 border border-blue-200 bg-blue-50/40 text-sm font-sans">
       {/* ── Card header ─────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-blue-100">
+      <div className="flex items-center gap-1.5 px-2.5 py-1.5 border-b border-blue-100">
         {/* Colour swatch — click opens native color picker */}
         <button
           onClick={() => colorInputRef.current?.click()}
@@ -201,34 +202,56 @@ export default function SelectedGroupCard({
             Sub Item
           </span>
         )}
+
+        <button
+          onClick={() => setIsCollapsed((prev) => !prev)}
+          className="ml-auto p-0.5 text-blue-600 hover:text-blue-800 hover:bg-blue-100 transition-colors"
+          title={isCollapsed ? "Expand" : "Collapse"}
+          aria-label={isCollapsed ? "Expand selected group card" : "Collapse selected group card"}
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            className={cn("w-3.5 h-3.5 transition-transform", isCollapsed && "rotate-180")}
+          >
+            <path
+              fillRule="evenodd"
+              d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </button>
       </div>
 
+      {!isCollapsed && (
+        <>
       {/* ── Editable fields ──────────────────────────────────────────────────── */}
-      <div className="px-3 pt-2.5 pb-1 space-y-2">
-        {/* Name */}
-        <div className="space-y-0.5">
-          <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
-            Name
-          </label>
-          <input
-            value={editName}
-            onChange={handleNameChange}
-            placeholder="Group name"
-            className="w-full text-xs px-2 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors"
-          />
-        </div>
+      <div className="px-2.5 pt-2 pb-1 space-y-1.5">
+        <div className="grid grid-cols-2 gap-1.5">
+          <div className="space-y-0.5">
+            <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+              Name
+            </label>
+            <input
+              value={editName}
+              onChange={handleNameChange}
+              placeholder="Group name"
+              className="w-full text-[11px] px-1.5 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors"
+            />
+          </div>
 
-        {/* Code */}
-        <div className="space-y-0.5">
-          <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
-            Code
-          </label>
-          <input
-            value={editCode}
-            onChange={handleCodeChange}
-            placeholder="Group code"
-            className="w-full text-xs px-2 py-1 border border-gray-200 bg-white font-mono focus:outline-none focus:border-blue-400 transition-colors"
-          />
+          <div className="space-y-0.5">
+            <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+              Code
+            </label>
+            <input
+              value={editCode}
+              onChange={handleCodeChange}
+              placeholder="Group code"
+              className="w-full text-[11px] px-1.5 py-1 border border-gray-200 bg-white font-mono focus:outline-none focus:border-blue-400 transition-colors"
+            />
+          </div>
         </div>
 
         {group.is_subgroup && (
@@ -239,62 +262,74 @@ export default function SelectedGroupCard({
             <input
               value={parentGroup ? `${parentGroup.name}${parentGroup.code ? ` (${parentGroup.code})` : ""}` : "Unknown parent"}
               readOnly
-              className="w-full text-xs px-2 py-1 border border-gray-200 bg-gray-50 text-gray-600 focus:outline-none"
+              className="w-full text-[11px] px-1.5 py-1 border border-gray-200 bg-gray-50 text-gray-600 focus:outline-none"
             />
           </div>
         )}
 
-        {/* Type */}
-        <div className="space-y-0.5">
-          <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
-            Type
-          </label>
-          <select
-            value={editType}
-            onChange={handleTypeChange}
-            className="w-full text-xs px-2 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors cursor-pointer"
-          >
-            {typeOptions.map((typeName) => (
-              <option key={typeName} value={typeName}>
-                {typeName}
-              </option>
-            ))}
-          </select>
+        <div className="grid grid-cols-2 gap-1.5">
+          <div className="space-y-0.5">
+            <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+              Type
+            </label>
+            <select
+              value={editType}
+              onChange={handleTypeChange}
+              className="w-full text-[11px] px-1.5 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors cursor-pointer"
+            >
+              {typeOptions.map((typeName) => (
+                <option key={typeName} value={typeName}>
+                  {typeName}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="space-y-0.5">
+            <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+              Unit
+            </label>
+            <select
+              value={editUnitId}
+              onChange={handleUnitChange}
+              className="w-full text-[11px] px-1.5 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors cursor-pointer"
+            >
+              <option value="">No Unit</option>
+              {unitOptions.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
-        {/* User Entered Qty */}
-        <div className="space-y-0.5">
-          <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
-            User Entered Qty
-          </label>
-          <input
-            value={editUserEnteredQty}
-            onChange={handleUserEnteredQtyChange}
-            placeholder="Quantity override"
-            className="w-full text-xs px-2 py-1 border border-gray-200 bg-white font-mono focus:outline-none focus:border-blue-400 transition-colors"
-          />
+        <div className="grid grid-cols-2 gap-1.5">
+          <div className="space-y-0.5">
+            <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+              User Qty
+            </label>
+            <input
+              value={editUserEnteredQty}
+              onChange={handleUserEnteredQtyChange}
+              placeholder="Override"
+              className="w-full text-[11px] px-1.5 py-1 border border-gray-200 bg-white font-mono focus:outline-none focus:border-blue-400 transition-colors"
+            />
+          </div>
+
+          <div className="space-y-0.5">
+            <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+              Size (ft)
+            </label>
+            <input
+              value={editSize == null ? "" : String(editSize)}
+              readOnly
+              placeholder="Measure tool"
+              className="w-full text-[11px] px-1.5 py-1 border border-gray-200 bg-gray-50 text-gray-600 focus:outline-none"
+            />
+          </div>
         </div>
 
-        {/* Unit */}
-        <div className="space-y-0.5">
-          <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
-            Unit
-          </label>
-          <select
-            value={editUnitId}
-            onChange={handleUnitChange}
-            className="w-full text-xs px-2 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors cursor-pointer"
-          >
-            <option value="">No Unit</option>
-            {unitOptions.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Description */}
         <div className="space-y-0.5">
           <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
             Description
@@ -303,50 +338,29 @@ export default function SelectedGroupCard({
             value={editDescription}
             onChange={handleDescriptionChange}
             placeholder="Group description"
-            rows={2}
-            className="w-full text-xs px-2 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors"
+            rows={1}
+            className="w-full text-[11px] px-1.5 py-1 border border-gray-200 bg-white focus:outline-none focus:border-blue-400 transition-colors"
           />
         </div>
 
-        {/* Size */}
-        <div className="space-y-0.5">
-          <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
-            Size (ft)
-          </label>
-          <input
-            value={editSize == null ? "" : String(editSize)}
-            readOnly
-            placeholder="Set via Measure tool"
-            className="w-full text-xs px-2 py-1 border border-gray-200 bg-gray-50 text-gray-600 focus:outline-none"
+        <button
+          onClick={() => colorInputRef.current?.click()}
+          className="flex items-center gap-1.5 w-full px-1.5 py-1 border border-gray-200 bg-white text-left hover:border-blue-400 transition-colors"
+        >
+          <span
+            className="inline-block w-3 h-3 shrink-0 ring-1 ring-black/10"
+            style={{ backgroundColor: editColor }}
           />
-        </div>
-
-        {/* Colour preview row */}
-        <div className="space-y-0.5">
-          <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
-            Colour
-          </label>
-          <button
-            onClick={() => colorInputRef.current?.click()}
-            className="flex items-center gap-2 w-full px-2 py-1 border border-gray-200 bg-white text-left hover:border-blue-400 transition-colors"
-          >
-            <span
-              className="inline-block w-3.5 h-3.5 shrink-0 ring-1 ring-black/10"
-              style={{ backgroundColor: editColor }}
-            />
-            <span className="text-xs font-mono text-gray-600">
-              {editColor.toUpperCase()}
-            </span>
-            <span className="ml-auto text-[9px] text-gray-400">
-              Click to change
-            </span>
-          </button>
-        </div>
+          <span className="text-[10px] font-mono text-gray-600">
+            {editColor.toUpperCase()}
+          </span>
+          <span className="ml-auto text-[9px] text-gray-400">Colour</span>
+        </button>
       </div>
 
       {/* ── Save / Cancel ────────────────────────────────────────────────────── */}
       {isDirty && (
-        <div className="px-3 pb-2 space-y-1.5">
+        <div className="px-2.5 pb-1.5 space-y-1">
           <div className="flex gap-1.5">
             <button
               onClick={handleSave}
@@ -371,7 +385,7 @@ export default function SelectedGroupCard({
       <div className="border-t border-blue-100">
         <button
           onClick={() => setIsOpen((v) => !v)}
-          className="w-full px-3 py-2 flex items-center justify-between text-xs font-medium text-gray-600 hover:bg-blue-50 transition-colors"
+          className="w-full px-2.5 py-1.5 flex items-center justify-between text-[11px] font-medium text-gray-600 hover:bg-blue-50 transition-colors"
         >
           <div className="flex items-center gap-1.5">
             <svg
@@ -452,6 +466,8 @@ export default function SelectedGroupCard({
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }
