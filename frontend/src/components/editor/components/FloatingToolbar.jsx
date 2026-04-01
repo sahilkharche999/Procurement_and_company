@@ -41,7 +41,6 @@ export default function FloatingToolbar({
         </svg>
         {isDrawMode ? "Cancel Mask Drawing" : "Draw Custom Mask"}
       </button>
-
       <button
         onClick={() => {
           const next = !isLabelDrawMode;
@@ -70,7 +69,6 @@ export default function FloatingToolbar({
         </svg>
         {isLabelDrawMode ? "Cancel Label Drawing" : "Draw Label"}
       </button>
-
       <button
         onClick={onCreateSubItem}
         disabled={!canCreateSubItem}
@@ -104,7 +102,6 @@ export default function FloatingToolbar({
         </svg>
         Create SubItem
       </button>
-
       <button
         onClick={() => {
           const next = !isSetScaleMode;
@@ -140,7 +137,6 @@ export default function FloatingToolbar({
         </svg>
         {isSetScaleMode ? "Cancel Set Scale" : "Set Scale"}
       </button>
-
       <button
         onClick={() => {
           const next = !isMeasureMode;
@@ -173,7 +169,7 @@ export default function FloatingToolbar({
         </svg>
         {isMeasureMode ? "Cancel Measure" : "Measure"}
       </button>
-  {roomScaleFactor ? (
+      {roomScaleFactor ? (
         <div className="text-[11px] text-gray-700 bg-white/95 p-2 rounded shadow-sm border border-gray-200 pointer-events-auto">
           Scale: 1 px = {roomScaleFactor.toFixed(4)} ft
         </div>
