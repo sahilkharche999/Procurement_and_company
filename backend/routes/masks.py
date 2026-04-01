@@ -31,6 +31,9 @@ def _serialize_mask(doc: dict) -> dict:
     d["polygons"] = d.get("polygons", [])
     d["source"] = d.get("source", "system")
     d["mask_type"] = d.get("mask_type", d.get("type", "label")).lower()
+    raw_parent_mask = d.get("parent_mask")
+    d["parent_mask"] = str(raw_parent_mask) if raw_parent_mask else None
+    d["is_sub_mask"] = bool(d.get("is_sub_mask", False))
     return d
 
 
@@ -94,6 +97,9 @@ async def create_mask(body: MaskCreate):
     doc["room"] = str(room_id)
     doc["project"] = project_id
     doc["mask_type"] = (doc.get("mask_type") or "label").lower()
+    parent_mask = doc.get("parent_mask")
+    doc["parent_mask"] = str(parent_mask).strip() if parent_mask else None
+    doc["is_sub_mask"] = bool(doc.get("is_sub_mask", False))
 
     res = await coll.insert_one(doc)
     doc["_id"] = str(res.inserted_id)
@@ -112,6 +118,11 @@ async def update_mask(mask_id: str, body: MaskUpdate):
 
     if "mask_type" in updates and updates["mask_type"]:
         updates["mask_type"] = updates["mask_type"].lower()
+    if "parent_mask" in updates:
+        parent_mask = updates.get("parent_mask")
+        updates["parent_mask"] = str(parent_mask).strip() if parent_mask else None
+    if "is_sub_mask" in updates:
+        updates["is_sub_mask"] = bool(updates.get("is_sub_mask"))
 
     result = await coll.update_one({"_id": _as_obj_id(mask_id)}, {"$set": updates})
     if result.matched_count == 0:
