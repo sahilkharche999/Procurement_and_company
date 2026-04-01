@@ -37,6 +37,7 @@ export function CreateBudgetItemDialog({
 
   const defaultFormData = {
     spec_no: '',
+    name: '',
     description: '',
     qty: '1',
     unit_cost: '',
@@ -135,6 +136,17 @@ export function CreateBudgetItemDialog({
               placeholder="Enter item description"
               disabled={isLoading}
               required
+            />
+          </div>
+
+          {/* Name */}
+          <div>
+            <label className="text-sm font-medium block mb-1">Name</label>
+            <Input
+              value={formData.name}
+              onChange={(e) => handleChange('name', e.target.value)}
+              placeholder="Enter item name"
+              disabled={isLoading}
             />
           </div>
 

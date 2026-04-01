@@ -196,6 +196,14 @@ export function BudgetRow({
           </div>
         </td>}
 
+        {/* Name */}
+        {isVisible("name") && <td
+          className="p-2 align-middle max-w-35 truncate"
+          title={item.name}
+        >
+          <span className="truncate block">{item.name || "-"}</span>
+        </td>}
+
         {/* Description */}
         {isVisible("description") && <td
           className="p-2 align-middle max-w-[200px] truncate"
@@ -454,6 +462,7 @@ export function BudgetRow({
           const newItem = {
             ...formData,
             section: item.section,
+            name: formData.name || "",
             insert_relative_to: item._id,
             position: insertPosition,
             room: formData.room || "",
@@ -485,6 +494,7 @@ export function BudgetRow({
         onConfirm={async (formData) => {
           const subItemData = {
             spec_no: formData.spec_no,
+            name: formData.name || "",
             description: formData.description,
             type: formData.type || item.type || "FF&E",
             qty: formData.qty,
@@ -544,6 +554,7 @@ export function BudgetRow({
         onConfirm={async (formData) => {
           const updatedItem = {
             spec_no: formData.spec_no,
+            name: formData.name || "",
             description: formData.description,
             type: formData.type || "FF&E",
             qty: formData.qty || "1",

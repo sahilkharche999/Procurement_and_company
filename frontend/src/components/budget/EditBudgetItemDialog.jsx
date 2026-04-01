@@ -32,6 +32,7 @@ export function EditBudgetItemDialog({
 
   const [formData, setFormData] = useState({
     spec_no: '',
+    name: '',
     description: '',
     qty: '1',
     unit_id: '',
@@ -61,6 +62,7 @@ export function EditBudgetItemDialog({
       const nextQty = String(item.qty || '1')
       setFormData({
         spec_no: item.spec_no || '',
+        name: item.name || '',
         description: item.description || '',
         qty: nextQty,
         unit_id:
@@ -135,6 +137,17 @@ export function EditBudgetItemDialog({
               placeholder="Enter item description"
               disabled={isLoading}
               required
+            />
+          </div>
+
+          {/* Name */}
+          <div>
+            <label className="text-sm font-medium block mb-1">Name</label>
+            <Input
+              value={formData.name}
+              onChange={(e) => handleChange('name', e.target.value)}
+              placeholder="Enter item name"
+              disabled={isLoading}
             />
           </div>
 
