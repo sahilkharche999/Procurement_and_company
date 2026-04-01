@@ -40,6 +40,7 @@ export function EditBudgetItemDialog({
     type: 'FF&E',
     vendor: '',
   })
+  const [initialQty, setInitialQty] = useState('1')
 
   const typeOptions = useMemo(() => {
     const fromSettings = itemTypes
@@ -57,10 +58,11 @@ export function EditBudgetItemDialog({
 
   useEffect(() => {
     if (open && item._id) {
+      const nextQty = String(item.qty || '1')
       setFormData({
         spec_no: item.spec_no || '',
         description: item.description || '',
-        qty: item.qty || '1',
+        qty: nextQty,
         unit_id:
           (typeof item.unit_id === 'object' ? item.unit_id?._id || '' : item.unit_id) ||
           (typeof item.unit === 'object' ? item.unit?._id || '' : item.unit) ||
@@ -70,6 +72,7 @@ export function EditBudgetItemDialog({
         type: item.type || 'FF&E',
         vendor: typeof item.vendor === 'object' ? item.vendor?._id || '' : item.vendor || '',
       })
+      setInitialQty(nextQty)
     }
   }, [open, item])
 
@@ -92,7 +95,12 @@ export function EditBudgetItemDialog({
       return
     }
 
-    await onConfirm(formData)
+    const payload = { ...formData }
+    if (String(payload.qty ?? '').trim() === String(initialQty ?? '').trim()) {
+      delete payload.qty
+    }
+
+    await onConfirm(payload)
     onOpenChange(false)
   }
 

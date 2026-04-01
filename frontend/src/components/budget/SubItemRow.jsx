@@ -48,6 +48,7 @@ export function SubItemRow({
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [detaching, setDetaching] = useState(false);
+  const [initialQty, setInitialQty] = useState(String(subitem.qty || '1'));
 
   const handleDelete = async () => {
     setDeleting(true);
@@ -91,7 +92,7 @@ export function SubItemRow({
       className={`bg-muted/20 hover:bg-muted/30 transition-colors ${mutedRow}`}
     >
       {/* Indent indicator */}
-      {isVisible("specNo") && <TableCell className={`${cellCls} w-[100px]`}>
+      {isVisible("specNo") && <TableCell className={`${cellCls} w-25`}>
         <div className="flex items-center gap-1 text-muted-foreground/50">
           <CornerDownRight className="h-3 w-3 shrink-0" />
           <span className="font-mono text-[11px] text-muted-foreground">
@@ -101,7 +102,7 @@ export function SubItemRow({
       </TableCell>}
 
       {/* Description */}
-      {isVisible("description") && <TableCell className={`${cellCls} max-w-[200px] truncate`}>
+      {isVisible("description") && <TableCell className={`${cellCls} max-w-50 truncate`}>
         <span>{subitem.description}</span>
       </TableCell>}
 
@@ -113,15 +114,15 @@ export function SubItemRow({
       </TableCell>}
 
       {/* Room */}
-      {isVisible("room") && <TableCell className={`${cellCls} w-[120px]`}>
+      {isVisible("room") && <TableCell className={`${cellCls} w-30`}>
         <span className="truncate block">{resolvedRoomName}</span>
       </TableCell>}
 
       {/* Page — empty */}
-      {isVisible("page") && <TableCell className={`${cellCls} w-[60px] text-center`} />}
+      {isVisible("page") && <TableCell className={`${cellCls} w-15 text-center`} />}
 
       {/* Qty */}
-      {isVisible("qty") && <TableCell className={`${cellCls} w-[80px]`}>
+      {isVisible("qty") && <TableCell className={`${cellCls} w-20`}>
         <div className="flex items-center gap-1.5">
           <span
             className={cn(
@@ -139,17 +140,17 @@ export function SubItemRow({
       </TableCell>}
 
       {/* Unit */}
-      {isVisible("unit") && <TableCell className={`${cellCls} w-[100px]`}>
+      {isVisible("unit") && <TableCell className={`${cellCls} w-25`}>
         {resolvedUnitName}
       </TableCell>}
 
       {/* Unit Cost */}
-      {isVisible("unitCost") && <TableCell className={`${cellCls} w-[100px] text-right`}>
+      {isVisible("unitCost") && <TableCell className={`${cellCls} w-25 text-right`}>
         {formatCurrency(subitem.unit_cost)}
       </TableCell>}
 
       {/* Extended */}
-      {isVisible("extended") && <TableCell className={`${cellCls} w-[100px] text-right font-medium`}>
+      {isVisible("extended") && <TableCell className={`${cellCls} w-25 text-right font-medium`}>
         <span
           className={
             subitem.hidden_from_total
@@ -161,12 +162,12 @@ export function SubItemRow({
         </span>
       </TableCell>}
 
-      {isVisible("vendor") && <TableCell className={`${cellCls} w-[120px] truncate`} title={subitem.vendor_name}>
+      {isVisible("vendor") && <TableCell className={`${cellCls} w-30 truncate`} title={subitem.vendor_name}>
         {subitem.vendor_name || "-"}
       </TableCell>}
 
       {/* Actions */}
-      {isVisible("actions") && <TableCell className={`${cellCls} w-[150px] text-right`}>
+      {isVisible("actions") && <TableCell className={`${cellCls} w-37.5 text-right`}>
         <div className="flex items-center justify-end gap-0.5">
           {/* Hide from totals */}
           <Button
@@ -235,16 +236,23 @@ export function SubItemRow({
         onConfirm={async (formData) => {
           try {
             setUpdating(true);
-            await onUpdate(subitem._id, {
+            const payload = {
               spec_no: formData.spec_no,
               description: formData.description,
               type: formData.type || "FF&E",
-              qty: formData.qty || "1",
               unit_id: formData.unit_id || null,
               unit_cost:
                 formData.unit_cost !== "" ? Number(formData.unit_cost) : null,
               room: formData.room || roomId,
               vendor: formData.vendor || "",
+            };
+
+            if (String(formData.qty ?? "").trim() !== String(initialQty ?? "").trim()) {
+              payload.qty = formData.qty || "1";
+            }
+
+            await onUpdate(subitem._id, {
+              ...payload,
             });
             setEditDialogOpen(false);
           } finally {

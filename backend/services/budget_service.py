@@ -466,11 +466,18 @@ async def update_item(item_id: str, updates: dict) -> dict | None:
     if not doc:
         return None
 
-    # Manual qty edit should be tracked in user_entered_qty only.
+    original_qty = str(doc.get("qty", "") or "").strip()
+
     if "qty" in updates:
         raw_qty = updates.pop("qty")
         cleaned_qty = str(raw_qty).strip() if raw_qty is not None else ""
-        updates["user_entered_qty"] = cleaned_qty or None
+        # If the frontend echoed back the current system qty while editing a
+        # different field, preserve the existing user-entered quantity.
+        if cleaned_qty == original_qty and "user_entered_qty" not in updates:
+            cleaned_qty = ""
+
+        if cleaned_qty:
+            updates["user_entered_qty"] = cleaned_qty
 
     if "user_entered_qty" in updates:
         raw_user_qty = updates.get("user_entered_qty")
