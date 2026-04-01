@@ -10,6 +10,7 @@ import GroupAssignPopover from "./GroupAssignPopover";
 import AssignDrawnMaskDialog from "./dialogs/AssignDrawnMaskDialog";
 import SetScaleDialog from "./dialogs/SetScaleDialog";
 import MeasureAssignDialog from "./dialogs/MeasureAssignDialog";
+import DeleteEmptyGroupsDialog from "./dialogs/DeleteEmptyGroupsDialog";
 import FloatingToolbar from "./components/FloatingToolbar";
 import { buildServerUrl } from "../../config";
 import { useEditorApi } from "../../redux/hooks/editor/useEditorApi";
@@ -141,6 +142,10 @@ export default function EditorLayout() {
   const [pendingMaskType, setPendingMaskType] = useState("custom");
   const [pendingScaleLinePixels, setPendingScaleLinePixels] = useState(null);
   const [pendingMeasuredFeet, setPendingMeasuredFeet] = useState(null);
+  const [deleteEmptyGroupsDialogOpen, setDeleteEmptyGroupsDialogOpen] =
+    useState(false);
+  const [emptyGroupsToDelete, setEmptyGroupsToDelete] = useState([]);
+  const [isDeletingEmptyGroups, setIsDeletingEmptyGroups] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null); // null | 'saved'
   const [clipboardMasks, setClipboardMasks] = useState([]);
 
@@ -707,49 +712,83 @@ export default function EditorLayout() {
     }
   };
 
-  /**
-   * Delete all groups that currently have no masks assigned to them.
-   */
-  const handleDeleteEmptyGroups = async () => {
+  const getEmptyGroups = () => {
     const groupIdsWithMasks = new Set(
       masks.map((m) => m.group_id).filter(Boolean),
     );
     const emptyGroupIds = Object.keys(groups).filter(
-      (id) => !groupIdsWithMasks.has(id),
+      (id) => {
+        const group = groups[id];
+        const hasUserEnteredQty =
+          group?.user_entered_qty !== undefined &&
+          group?.user_entered_qty !== null &&
+          String(group.user_entered_qty).trim() !== "";
+
+        return !groupIdsWithMasks.has(id) && !hasUserEnteredQty;
+      },
     );
+
+    return emptyGroupIds.map((id) => ({
+      id,
+      name: groups[id]?.name || "",
+      code: groups[id]?.code || "",
+    }));
+  };
+
+  /**
+   * Ask for confirmation before deleting all groups that currently have no masks.
+   */
+  const handleDeleteEmptyGroups = () => {
+    const emptyGroups = getEmptyGroups();
+    if (emptyGroups.length === 0) return;
+    setEmptyGroupsToDelete(emptyGroups);
+    setDeleteEmptyGroupsDialogOpen(true);
+  };
+
+  const handleConfirmDeleteEmptyGroups = async () => {
+    const emptyGroupIds = emptyGroupsToDelete.map((g) => g.id);
 
     if (emptyGroupIds.length === 0) return;
 
-    const keepIds = new Set();
-    for (const id of emptyGroupIds) {
-      if (!isMongoObjectId(id)) {
-        continue;
+    setIsDeletingEmptyGroups(true);
+
+    try {
+      const keepIds = new Set();
+      for (const id of emptyGroupIds) {
+        if (!isMongoObjectId(id)) {
+          continue;
+        }
+
+        try {
+          await deleteGroupOnServer(id);
+        } catch (err) {
+          console.error(err);
+          keepIds.add(id);
+        }
       }
 
-      try {
-        await deleteGroupOnServer(id);
-      } catch (err) {
-        console.error(err);
-        keepIds.add(id);
+      const newGroups = { ...groups };
+      let hasDeletions = false;
+      emptyGroupIds.forEach((id) => {
+        if (!keepIds.has(id)) {
+          delete newGroups[id];
+          hasDeletions = true;
+        }
+      });
+
+      if (hasDeletions) {
+        setGroups(newGroups);
+        if (selectedGroupId && !newGroups[selectedGroupId]) {
+          setSelectedGroupId(null);
+        }
+        pushToHistory(masks, newGroups);
       }
+
+      setDeleteEmptyGroupsDialogOpen(false);
+      setEmptyGroupsToDelete([]);
+    } finally {
+      setIsDeletingEmptyGroups(false);
     }
-
-    const newGroups = { ...groups };
-    let hasDeletions = false;
-    emptyGroupIds.forEach((id) => {
-      if (!keepIds.has(id)) {
-        delete newGroups[id];
-        hasDeletions = true;
-      }
-    });
-
-    if (!hasDeletions) return;
-
-    setGroups(newGroups);
-    if (selectedGroupId && !newGroups[selectedGroupId]) {
-      setSelectedGroupId(null);
-    }
-    pushToHistory(masks, newGroups);
   };
 
   const handleMaskClickFromSidebar = (maskId) => {
@@ -915,6 +954,18 @@ export default function EditorLayout() {
         groups={groups}
         onClose={() => setPendingMeasuredFeet(null)}
         onAssign={handleAssignMeasuredSize}
+      />
+
+      <DeleteEmptyGroupsDialog
+        open={deleteEmptyGroupsDialogOpen}
+        groups={emptyGroupsToDelete}
+        isDeleting={isDeletingEmptyGroups}
+        onClose={() => {
+          if (isDeletingEmptyGroups) return;
+          setDeleteEmptyGroupsDialogOpen(false);
+          setEmptyGroupsToDelete([]);
+        }}
+        onConfirm={handleConfirmDeleteEmptyGroups}
       />
 
       {/* ── Save Notification ────────────────────────────────────────────── */}
