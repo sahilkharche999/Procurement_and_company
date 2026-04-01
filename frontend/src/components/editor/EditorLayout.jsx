@@ -23,6 +23,7 @@ export default function EditorLayout() {
     setRoomBudgetInclusion,
     setRoomScaleFactor: updateRoomScaleFactor,
     createGroup,
+    createSubgroup,
     updateGroup,
     deleteGroup,
   } = useEditorApi(roomId);
@@ -123,6 +124,7 @@ export default function EditorLayout() {
   const [contextMenu, setContextMenu] = useState(null);
   const [groupDialogOpen, setGroupDialogOpen] = useState(false);
   const [createGroupDialogOpen, setCreateGroupDialogOpen] = useState(false);
+  const [createSubgroupDialogOpen, setCreateSubgroupDialogOpen] = useState(false);
 
   // ─── Reassign-mode state ───────────────────────────────────────────────────
   /** Whether "Change Group" mode is active (only meaningful in group editorMode) */
@@ -163,6 +165,8 @@ export default function EditorLayout() {
       type: raw.type || "FF&E",
       unit_id: raw.unit_id || null,
       size: raw.size ?? null,
+      parent_group: raw.parent_group || null,
+      is_subgroup: !!raw.is_subgroup,
       room: raw.room || roomId || "",
       project: raw.project || "",
     };
@@ -170,6 +174,11 @@ export default function EditorLayout() {
 
   const createGroupOnServer = async (group) => {
     const created = await createGroup(group);
+    return normalizeGroup(created);
+  };
+
+  const createSubgroupOnServer = async (group) => {
+    const created = await createSubgroup(group);
     return normalizeGroup(created);
   };
 
@@ -341,6 +350,15 @@ export default function EditorLayout() {
 
       const isMac = navigator.platform.toUpperCase().includes("MAC");
       const ctrlKey = isMac ? e.metaKey : e.ctrlKey;
+
+      if (e.key === "Escape") {
+        if (isLabelDrawMode || isDrawMode) {
+          setIsLabelDrawMode(false);
+          setIsDrawMode(false);
+          setPendingMaskPolygons(null);
+          setPendingMaskType("custom");
+        }
+      }
 
       if (ctrlKey && e.key === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -594,6 +612,34 @@ export default function EditorLayout() {
     }
   };
 
+  const handleSubgroupCreated = async (newGroupDraft) => {
+    try {
+      const createdGroup = await createSubgroupOnServer(newGroupDraft);
+      if (!createdGroup) return null;
+
+      const newGroups = { ...groups, [createdGroup.id]: createdGroup };
+      setGroups(newGroups);
+      setSelectedGroupId(createdGroup.id);
+      setEditorMode("group");
+      setIsLabelDrawMode(true);
+      setIsDrawMode(false);
+      pushToHistory(masks, newGroups);
+      return createdGroup;
+    } catch (err) {
+      console.error(err);
+      return { error: err?.message || "Failed to create subgroup" };
+    }
+  };
+
+  const handleOpenCreateSubgroupDialog = () => {
+    if (!selectedGroupId || !groups[selectedGroupId]) {
+      setSaveStatus("Select a group first to create subitem");
+      setTimeout(() => setSaveStatus(null), 2000);
+      return;
+    }
+    setCreateSubgroupDialogOpen(true);
+  };
+
   const handleGroupUpdated = async (updatedGroup) => {
     try {
       let savedGroup = null;
@@ -759,6 +805,8 @@ export default function EditorLayout() {
           isMeasureMode={isMeasureMode}
           setIsMeasureMode={setIsMeasureMode}
           roomScaleFactor={roomScaleFactor}
+          onCreateSubItem={handleOpenCreateSubgroupDialog}
+          canCreateSubItem={!!selectedGroupId && !!groups[selectedGroupId]}
         />
 
         <CanvasEditor
@@ -826,6 +874,20 @@ export default function EditorLayout() {
         open={createGroupDialogOpen}
         onClose={() => setCreateGroupDialogOpen(false)}
         onGroupCreated={handleGroupCreated}
+      />
+
+      <CreateGroupDialog
+        open={createSubgroupDialogOpen}
+        onClose={() => setCreateSubgroupDialogOpen(false)}
+        onGroupCreated={handleSubgroupCreated}
+        title="Create SubItem Group"
+        descriptionText="Create a subgroup under the currently selected group. New labels/masks will belong to this subgroup."
+        submitLabel="Create SubItem"
+        initialType={groups[selectedGroupId]?.type || "FF&E"}
+        extraPayload={{
+          parent_group: selectedGroupId,
+          is_subgroup: true,
+        }}
       />
 
       {pendingMaskPolygons && (

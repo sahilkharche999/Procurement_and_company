@@ -8,9 +8,12 @@ export default function FloatingToolbar({
   isMeasureMode,
   setIsMeasureMode,
   roomScaleFactor,
+  onCreateSubItem,
+  canCreateSubItem,
 }) {
   return (
-    <div className="absolute top-4 left-4 z-10 flex flex-col gap-2 pointer-events-none">
+    <div>
+    <div className=" mt-4 ml-4 top-8 left-4 z-10 flex flex-row gap-2 pointer-events-none">
       <button
         onClick={() => {
           const next = !isDrawMode;
@@ -66,6 +69,40 @@ export default function FloatingToolbar({
           <path d="M4 7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v4a3 3 0 0 1-3 3H8l-4 4V7z" />
         </svg>
         {isLabelDrawMode ? "Cancel Label Drawing" : "Draw Label"}
+      </button>
+
+      <button
+        onClick={onCreateSubItem}
+        disabled={!canCreateSubItem}
+        className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded shadow-sm border pointer-events-auto transition-colors ${
+          canCreateSubItem
+            ? "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
+            : "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+        }`}
+        title={
+          canCreateSubItem
+            ? "Create subgroup for selected group"
+            : "Select a group first to create subitem"
+        }
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          className="w-4 h-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M8 6h13" />
+          <path d="M8 12h13" />
+          <path d="M8 18h13" />
+          <path d="M3 12h1" />
+          <path d="M3 6h1" />
+          <path d="M3 18h1" />
+        </svg>
+        Create SubItem
       </button>
 
       <button
@@ -136,12 +173,14 @@ export default function FloatingToolbar({
         </svg>
         {isMeasureMode ? "Cancel Measure" : "Measure"}
       </button>
-
-      {roomScaleFactor ? (
+  {roomScaleFactor ? (
         <div className="text-[11px] text-gray-700 bg-white/95 p-2 rounded shadow-sm border border-gray-200 pointer-events-auto">
           Scale: 1 px = {roomScaleFactor.toFixed(4)} ft
         </div>
       ) : null}
+
+    </div>
+        
 
       {isDrawMode && (
         <div className="text-xs text-gray-600 bg-white/95 p-2.5 rounded shadow-sm border border-gray-200 pointer-events-auto">
@@ -170,9 +209,7 @@ export default function FloatingToolbar({
             <li>
               <strong>Click</strong> anywhere to place a label.
             </li>
-            <li>
-              Uses selected group from sidebar.
-            </li>
+            <li>Uses selected group from sidebar.</li>
             <li>
               If no group is selected, you&apos;ll be asked to choose one.
             </li>
@@ -190,9 +227,7 @@ export default function FloatingToolbar({
             <li>
               Press <strong>Enter</strong> to confirm the line.
             </li>
-            <li>
-              Enter actual feet value in dialog.
-            </li>
+            <li>Enter actual feet value in dialog.</li>
           </ul>
         </div>
       )}
@@ -207,9 +242,7 @@ export default function FloatingToolbar({
             <li>
               Press <strong>Enter</strong> to calculate size.
             </li>
-            <li>
-              Assign measured size to a group.
-            </li>
+            <li>Assign measured size to a group.</li>
           </ul>
         </div>
       )}

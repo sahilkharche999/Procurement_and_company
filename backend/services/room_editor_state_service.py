@@ -76,6 +76,8 @@ async def build_editor_state_payload(room_id: str, project_id: str) -> dict:
             "unit_id": str(group.get("unit_id")) if group.get("unit_id") else None,
             "user_entered_qty": group.get("user_entered_qty"),
             "size": group.get("size"),
+            "parent_group": str(group.get("parent_group")) if group.get("parent_group") else None,
+            "is_subgroup": bool(group.get("is_subgroup", False)),
             "description": group.get("description", ""),
             "room": str(group.get("room", room_id)),
             "project": str(group.get("project", project_id)),
@@ -94,8 +96,6 @@ async def build_editor_state_payload(room_id: str, project_id: str) -> dict:
                 "source": mask.get("source", "system"),
                 "type": mask_type,
                 "description": mask.get("description", ""),
-                "parent_mask": str(mask.get("parent_mask")) if mask.get("parent_mask") else None,
-                "is_sub_mask": bool(mask.get("is_sub_mask", False)),
             }
         )
 
@@ -129,6 +129,8 @@ async def persist_editor_state(room_id: str, project_id: str, groups: dict, mask
             "unit_id": (str(g_data.get("unit_id")).strip() if g_data.get("unit_id") is not None else "") or None,
             "user_entered_qty": g_data.get("user_entered_qty"),
             "size": g_data.get("size"),
+            "parent_group": (str(g_data.get("parent_group")).strip() if g_data.get("parent_group") else None) or None,
+            "is_subgroup": bool(g_data.get("is_subgroup", False)),
             "description": g_data.get("description", ""),
             "room": str(room_id),
             "project": str(project_id),
@@ -184,8 +186,6 @@ async def persist_editor_state(room_id: str, project_id: str, groups: dict, mask
             "polygons": mask.get("polygons", []),
             "source": mask.get("source", "user"),
             "mask_type": mask_type,
-            "parent_mask": str(mask.get("parent_mask")).strip() if mask.get("parent_mask") else None,
-            "is_sub_mask": bool(mask.get("is_sub_mask", False)),
         }
 
         incoming_mask_id = str(mask.get("id", ""))
@@ -207,8 +207,6 @@ async def persist_editor_state(room_id: str, project_id: str, groups: dict, mask
                 "source": mask_doc["source"],
                 "type": mask_doc["mask_type"],
                 "description": mask_doc["description"],
-                "parent_mask": mask_doc["parent_mask"],
-                "is_sub_mask": mask_doc["is_sub_mask"],
             }
         )
 

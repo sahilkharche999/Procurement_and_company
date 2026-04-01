@@ -23,8 +23,6 @@ class MaskBase(BaseModel):
     polygons: list[list[float]] = []
     source: str = "system"
     mask_type: Literal["label", "custom"] = "label"
-    parent_mask: str | None = None
-    is_sub_mask: bool = False
 
     @field_validator("color")
     @classmethod
@@ -52,8 +50,6 @@ class MaskUpdate(BaseModel):
     polygons: list[list[float]] | None = None
     source: str | None = None
     mask_type: Literal["label", "custom"] | None = None
-    parent_mask: str | None = None
-    is_sub_mask: bool | None = None
 
     @field_validator("color")
     @classmethod

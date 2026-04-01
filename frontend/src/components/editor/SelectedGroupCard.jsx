@@ -15,6 +15,7 @@ function hexToRgb(hex) {
 
 export default function SelectedGroupCard({
   group, // { id, name, code, color }
+  groups,
   masks, // all masks
   selectedMaskIds, // currently selected mask ids
   onUpdate, // (updatedGroup) => void
@@ -76,6 +77,7 @@ export default function SelectedGroupCard({
 
   // Masks that belong to this group
   const groupMasks = masks.filter((m) => m.group_id === group.id);
+  const parentGroup = group.parent_group ? groups?.[group.parent_group] : null;
 
   const colorStyle = {
     backgroundColor: `rgb(${group.color[0]}, ${group.color[1]}, ${group.color[2]})`,
@@ -194,6 +196,11 @@ export default function SelectedGroupCard({
         <span className="text-[10px] font-semibold text-blue-700 uppercase tracking-widest">
           Selected Group
         </span>
+        {group.is_subgroup && (
+          <span className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+            Sub Item
+          </span>
+        )}
       </div>
 
       {/* ── Editable fields ──────────────────────────────────────────────────── */}
@@ -223,6 +230,19 @@ export default function SelectedGroupCard({
             className="w-full text-xs px-2 py-1 border border-gray-200 bg-white font-mono focus:outline-none focus:border-blue-400 transition-colors"
           />
         </div>
+
+        {group.is_subgroup && (
+          <div className="space-y-0.5">
+            <label className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">
+              Parent Group
+            </label>
+            <input
+              value={parentGroup ? `${parentGroup.name}${parentGroup.code ? ` (${parentGroup.code})` : ""}` : "Unknown parent"}
+              readOnly
+              className="w-full text-xs px-2 py-1 border border-gray-200 bg-gray-50 text-gray-600 focus:outline-none"
+            />
+          </div>
+        )}
 
         {/* Type */}
         <div className="space-y-0.5">

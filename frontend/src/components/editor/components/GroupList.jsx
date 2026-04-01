@@ -16,6 +16,8 @@ export default function GroupList({
   onDeleteGroup,
   onCreateGroup,
 }) {
+  const groupsById = Object.fromEntries(allGroups.map((group) => [group.id, group]));
+
   return (
     <ScrollArea className="flex-1">
       <div className="px-3 pb-4 space-y-px">
@@ -57,21 +59,35 @@ export default function GroupList({
                     style={colorStyle}
                   />
                   <div className="flex flex-col min-w-0">
-                    <span
-                      className={cn(
-                        "text-sm leading-tight truncate",
-                        isSelected
-                          ? "font-medium text-gray-900"
-                          : "text-gray-600",
-                      )}
-                    >
-                      {highlightMatch(group.name, query)}
-                    </span>
-                    {group.code && (
-                      <span className="text-[10px] font-mono text-gray-400 truncate">
-                        {highlightMatch(group.code, query)}
+                    <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                      <span
+                        className={cn(
+                          "text-sm leading-tight truncate",
+                          isSelected
+                            ? "font-medium text-gray-900"
+                            : "text-gray-600",
+                        )}
+                      >
+                        {highlightMatch(group.name, query)}
                       </span>
-                    )}
+                      {group.is_subgroup && (
+                        <span className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200 shrink-0">
+                          Sub Item
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 flex-wrap min-w-0">
+                      {group.code && (
+                        <span className="text-[10px] font-mono text-gray-400 truncate">
+                          {highlightMatch(group.code, query)}
+                        </span>
+                      )}
+                      {group.is_subgroup && group.parent_group && (
+                        <span className="text-[9px] text-gray-500 truncate">
+                          of {groupsById[group.parent_group]?.code || groupsById[group.parent_group]?.name || "parent"}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 

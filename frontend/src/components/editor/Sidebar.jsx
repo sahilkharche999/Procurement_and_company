@@ -49,6 +49,7 @@ export default function Sidebar({
       {selectedGroupId && groups[selectedGroupId] && (
         <SelectedGroupCard
           group={groups[selectedGroupId]}
+          groups={groups}
           masks={masks}
           selectedMaskIds={selectedMaskIds}
           onUpdate={onUpdateGroup}
