@@ -92,6 +92,7 @@ export default function GroupList({
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
+                  
                   <button
                     title={`Delete group "${group.name}"`}
                     onClick={(event) => {
@@ -114,7 +115,25 @@ export default function GroupList({
                     </svg>
                   </button>
 
+                  {group.user_entered_qty !== undefined &&
+                    group.user_entered_qty !== null &&
+                    String(group.user_entered_qty).trim() !== "" && (
+                      <span
+                        title="User entered quantity"
+                        className={cn(
+                          "text-xs font-medium px-1.5 py-0.5 min-w-6 text-center",
+                          isSelected
+                            ? "text-blue-600 bg-blue-100 border-blue-200"
+                            : "text-emerald-700 bg-emerald-50 border-emerald-200",
+                        )}
+                      >
+                        {group.user_entered_qty}
+                      </span>
+                    )}
+
+
                   <span
+                    title="System identified quantity"
                     className={cn(
                       "text-xs font-medium px-1.5 py-0.5 min-w-6 text-center",
                       isSelected
