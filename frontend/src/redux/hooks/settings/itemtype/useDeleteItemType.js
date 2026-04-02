@@ -4,17 +4,17 @@ import { deleteItemType, fetchAllItemTypes } from '../../../actions/settings/ite
 
 export function useDeleteItemType() {
   const dispatch = useDispatch()
-  const { page, pageSize, search, loading, error } = useSelector((state) => state.itemTypesSettings)
+  const { page, pageSize, search, includeDeleted, loading, error } = useSelector((state) => state.itemTypesSettings)
 
   const remove = useCallback(
     async (id) => {
       const result = await dispatch(deleteItemType(id))
       if (result?.meta?.requestStatus === 'fulfilled') {
-        dispatch(fetchAllItemTypes({ page, pageSize, search }))
+        dispatch(fetchAllItemTypes({ page, pageSize, search, includeDeleted }))
       }
       return result
     },
-    [dispatch, page, pageSize, search]
+    [dispatch, page, pageSize, search, includeDeleted]
   )
 
   return { remove, loading, error }

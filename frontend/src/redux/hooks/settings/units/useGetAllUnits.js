@@ -4,12 +4,12 @@ import { fetchAllUnits } from '../../../actions/settings/unitActions'
 
 export function useGetAllUnits() {
   const dispatch = useDispatch()
-  const { items, total, page, pageSize, search, loading, error } =
+  const { items, total, page, pageSize, search, includeDeleted, loading, error } =
     useSelector((state) => state.unitsSettings)
 
   const fetch = useCallback(() => {
-    dispatch(fetchAllUnits({ page, pageSize, search }))
-  }, [dispatch, page, pageSize, search])
+    dispatch(fetchAllUnits({ page, pageSize, search, includeDeleted }))
+  }, [dispatch, page, pageSize, search, includeDeleted])
 
   useEffect(() => {
     fetch()
@@ -21,6 +21,7 @@ export function useGetAllUnits() {
     page,
     pageSize,
     search,
+    includeDeleted,
     loading,
     error,
     refetch: fetch,

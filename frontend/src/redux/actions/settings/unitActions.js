@@ -3,13 +3,16 @@ import { api } from '../../api/apiClient'
 
 export const fetchAllUnits = createAsyncThunk(
   'settings/units/fetchAll',
-  async ({ page, pageSize, search }, { rejectWithValue }) => {
+  async ({ page, pageSize, search, includeDeleted }, { rejectWithValue }) => {
     try {
       const params = new URLSearchParams({
         page: String(page || 1),
         page_size: String(pageSize || 50),
         search: search || '',
       })
+      if (includeDeleted) {
+        params.set('include_deleted', 'true')
+      }
       const res = await api.get(`/settings/units?${params}`)
       return res.data
     } catch (err) {
