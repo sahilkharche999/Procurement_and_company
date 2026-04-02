@@ -23,6 +23,7 @@ class ItemTypeConfigOut(BaseModel):
     id: str = Field(alias="_id")
     name: str
     description: str = ""
+    is_deleted: bool = False
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 

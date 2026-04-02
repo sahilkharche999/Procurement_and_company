@@ -14,6 +14,7 @@ const initialState = {
   page: 1,
   pageSize: 50,
   search: '',
+  includeDeleted: false,
   editingRowId: null,
   loading: false,
   error: null,
@@ -32,6 +33,10 @@ const itemTypesSlice = createSlice({
     },
     setSearch(state, action) {
       state.search = action.payload
+      state.page = 1
+    },
+    setIncludeDeleted(state, action) {
+      state.includeDeleted = !!action.payload
       state.page = 1
     },
     setEditingRowId(state, action) {
@@ -126,6 +131,7 @@ export const {
   setPage,
   setPageSize,
   setSearch,
+  setIncludeDeleted,
   setEditingRowId,
   clearError,
 } = itemTypesSlice.actions

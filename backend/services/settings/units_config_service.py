@@ -20,6 +20,7 @@ def _serialize(doc: dict) -> dict:
     data["_id"] = str(data["_id"])
     data["name"] = str(data.get("name", "")).strip()
     data["description"] = str(data.get("description", "")).strip()
+    data["is_deleted"] = bool(data.get("is_deleted", False))
     return data
 
 
@@ -27,9 +28,13 @@ async def list_units(
     page: int = 1,
     page_size: int = 50,
     search: str = "",
+    include_deleted: bool = False,
 ) -> dict:
     coll = get_units_config_collection()
     filt: dict = {}
+
+    if not include_deleted:
+        filt["is_deleted"] = {"$ne": True}
 
     if search:
         filt["$or"] = [
@@ -72,6 +77,7 @@ async def create_unit(data: dict) -> dict:
     doc = {
         "name": name,
         "description": description,
+        "is_deleted": False,
         "created_at": now,
         "updated_at": now,
     }
@@ -108,5 +114,8 @@ async def delete_unit(unit_id: str) -> bool:
         return False
 
     coll = get_units_config_collection()
-    result = await coll.delete_one({"_id": ObjectId(unit_id)})
-    return result.deleted_count == 1
+    result = await coll.update_one(
+        {"_id": ObjectId(unit_id)},
+        {"$set": {"is_deleted": True, "updated_at": _now()}},
+    )
+    return result.matched_count == 1

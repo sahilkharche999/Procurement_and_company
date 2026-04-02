@@ -4,17 +4,17 @@ import { createItemType, fetchAllItemTypes } from '../../../actions/settings/ite
 
 export function useCreateItemType() {
   const dispatch = useDispatch()
-  const { page, pageSize, search, loading, error } = useSelector((state) => state.itemTypesSettings)
+  const { page, pageSize, search, includeDeleted, loading, error } = useSelector((state) => state.itemTypesSettings)
 
   const create = useCallback(
     async (data) => {
       const result = await dispatch(createItemType(data))
       if (result?.meta?.requestStatus === 'fulfilled') {
-        dispatch(fetchAllItemTypes({ page, pageSize, search }))
+        dispatch(fetchAllItemTypes({ page, pageSize, search, includeDeleted }))
       }
       return result
     },
-    [dispatch, page, pageSize, search]
+    [dispatch, page, pageSize, search, includeDeleted]
   )
 
   return { create, loading, error }

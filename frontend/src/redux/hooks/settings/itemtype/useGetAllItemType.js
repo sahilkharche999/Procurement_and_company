@@ -4,12 +4,12 @@ import { fetchAllItemTypes } from '../../../actions/settings/itemTypeActions'
 
 export function useGetAllItemType() {
   const dispatch = useDispatch()
-  const { items, total, page, pageSize, search, loading, error } =
+  const { items, total, page, pageSize, search, includeDeleted, loading, error } =
     useSelector((state) => state.itemTypesSettings)
 
   const fetch = useCallback(() => {
-    dispatch(fetchAllItemTypes({ page, pageSize, search }))
-  }, [dispatch, page, pageSize, search])
+    dispatch(fetchAllItemTypes({ page, pageSize, search, includeDeleted }))
+  }, [dispatch, page, pageSize, search, includeDeleted])
 
   useEffect(() => {
     fetch()
@@ -21,6 +21,7 @@ export function useGetAllItemType() {
     page,
     pageSize,
     search,
+    includeDeleted,
     loading,
     error,
     refetch: fetch,

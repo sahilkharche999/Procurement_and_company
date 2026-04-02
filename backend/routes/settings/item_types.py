@@ -18,8 +18,14 @@ async def list_item_types(
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=500),
     search: str = Query(""),
+    include_deleted: bool = Query(False),
 ):
-    return await svc.list_item_types(page=page, page_size=page_size, search=search)
+    return await svc.list_item_types(
+        page=page,
+        page_size=page_size,
+        search=search,
+        include_deleted=include_deleted,
+    )
 
 
 @router.get("/{item_type_id}")
