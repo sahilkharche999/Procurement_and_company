@@ -83,6 +83,19 @@ def _resolve_unit_name(unit_value: str, unit_map: dict[str, dict]) -> str:
     return unit_key
 
 
+def _sum_item_with_subitems(item: dict) -> float:
+    total = 0.0
+
+    if not item.get("hidden_from_total"):
+        total += float(item.get("extended") or 0)
+
+    for sub in item.get("subitems", []) or []:
+        if isinstance(sub, dict) and not sub.get("hidden_from_total"):
+            total += float(sub.get("extended") or 0)
+
+    return total
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 async def _max_order(project_id: str) -> int:
@@ -215,9 +228,32 @@ async def list_items(
         d_serial["subitems"] = resolved_subitems
         items.append(d_serial)
 
-    # Grand total (all non-hidden, not just this page)
-    all_cursor = col.find(filt, {"extended": 1, "hidden_from_total": 1, "room": 1})
+    # Grand total (all non-hidden, including sub-items, not just this page)
+    all_cursor = col.find(filt, {"extended": 1, "hidden_from_total": 1, "room": 1, "subitems": 1})
     all_docs = await all_cursor.to_list(None)
+
+    all_sub_ids: list[ObjectId] = []
+    for d in all_docs:
+        for sid in d.get("subitems", []) or []:
+            if isinstance(sid, str) and ObjectId.is_valid(sid):
+                all_sub_ids.append(ObjectId(sid))
+
+    all_sub_map: dict[str, dict] = {}
+    if all_sub_ids:
+        unique_sub_ids = list({sid for sid in all_sub_ids})
+        all_sub_docs = await col.find(
+            {"_id": {"$in": unique_sub_ids}},
+            {"extended": 1, "hidden_from_total": 1, "room": 1},
+        ).to_list(None)
+        all_sub_map = {str(s["_id"]): s for s in all_sub_docs}
+
+    all_docs_with_subitems = []
+    for d in all_docs:
+        resolved_subs = []
+        for sid in d.get("subitems", []) or []:
+            if isinstance(sid, str) and sid in all_sub_map:
+                resolved_subs.append(all_sub_map[sid])
+        all_docs_with_subitems.append({**d, "subitems": resolved_subs})
 
     # Preload all rooms for totals
     all_room_ids = list({ObjectId(d["room"]) for d in all_docs if d.get("room") and ObjectId.is_valid(str(d["room"]))})
@@ -229,17 +265,21 @@ async def list_items(
             for r in all_rooms
         }
 
-    grand_total = sum(
-        (d.get("extended") or 0) for d in all_docs if not d.get("hidden_from_total")
-    )
+    grand_total = sum(_sum_item_with_subitems(d) for d in all_docs_with_subitems)
 
     room_totals: dict[str, float] = {}
-    for d in all_docs:
-        raw_room_id = str(d.get("room", "")) if d.get("room") else ""
-        key = str(all_room_map.get(raw_room_id, raw_room_id)) if raw_room_id else "Unassigned Room"
-        room_totals[key] = room_totals.get(key, 0.0) + (
-            (d.get("extended") or 0) if not d.get("hidden_from_total") else 0.0
-        )
+    for d in all_docs_with_subitems:
+        if not d.get("hidden_from_total"):
+            raw_room_id = str(d.get("room", "")) if d.get("room") else ""
+            key = str(all_room_map.get(raw_room_id, raw_room_id)) if raw_room_id else "Unassigned Room"
+            room_totals[key] = room_totals.get(key, 0.0) + float(d.get("extended") or 0)
+
+        for sub in d.get("subitems", []) or []:
+            if sub.get("hidden_from_total"):
+                continue
+            sub_room_id = str(sub.get("room", "")) if sub.get("room") else ""
+            key = str(all_room_map.get(sub_room_id, sub_room_id)) if sub_room_id else "Unassigned Room"
+            room_totals[key] = room_totals.get(key, 0.0) + float(sub.get("extended") or 0)
 
     return {
         "items": items,
@@ -355,18 +395,28 @@ async def export_items(
         d_serial["subitems"] = resolved_subitems
         items.append(d_serial)
 
-    grand_total = sum((d.get("extended") or 0) for d in docs if not d.get("hidden_from_total"))
+    grand_total = sum(_sum_item_with_subitems(d) for d in items)
     room_totals: dict[str, float] = {}
-    for d in docs:
-        raw_room_id = str(d.get("room", "")) if d.get("room") else ""
-        mapped_room = room_map.get(raw_room_id, {})
-        room_name = (
-            mapped_room.get("name") or mapped_room.get("room_name") or raw_room_id
-        ) if isinstance(mapped_room, dict) else raw_room_id
-        key = str(room_name) if raw_room_id else "Unassigned Room"
-        room_totals[key] = room_totals.get(key, 0.0) + (
-            (d.get("extended") or 0) if not d.get("hidden_from_total") else 0.0
-        )
+    for d in items:
+        if not d.get("hidden_from_total"):
+            raw_room_id = str(d.get("room", "")) if d.get("room") else ""
+            mapped_room = room_map.get(raw_room_id, {})
+            room_name = (
+                mapped_room.get("name") or mapped_room.get("room_name") or raw_room_id
+            ) if isinstance(mapped_room, dict) else raw_room_id
+            key = str(room_name) if raw_room_id else "Unassigned Room"
+            room_totals[key] = room_totals.get(key, 0.0) + float(d.get("extended") or 0)
+
+        for sub in d.get("subitems", []) or []:
+            if sub.get("hidden_from_total"):
+                continue
+            sub_room_id = str(sub.get("room", "")) if sub.get("room") else ""
+            mapped_room = room_map.get(sub_room_id, {})
+            room_name = (
+                mapped_room.get("name") or mapped_room.get("room_name") or sub_room_id
+            ) if isinstance(mapped_room, dict) else sub_room_id
+            key = str(room_name) if sub_room_id else "Unassigned Room"
+            room_totals[key] = room_totals.get(key, 0.0) + float(sub.get("extended") or 0)
 
     return {"items": items, "grand_total": grand_total, "room_totals": room_totals}
 

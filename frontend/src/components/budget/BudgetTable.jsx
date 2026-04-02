@@ -70,6 +70,17 @@ import { exportToExcel, exportToPdf } from "./exportBudget";
 export function BudgetTable({ projectId: propProjectId, refreshKey }) {
   const dispatch = useDispatch();
   const {
+    editingRowId,
+    search,
+    roomFilter,
+    groupByPage,
+    groupByRoom,
+    section,
+    projectId,
+  } = useSelector((state) => state.budget);
+  const effectiveProjectId = propProjectId || projectId || null;
+
+  const {
     items,
     total,
     page,
@@ -84,18 +95,8 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
   const { update } = useUpdateBudgetItem();
   const { remove } = useDeleteBudgetItem();
   const { addSub, updateSub, deleteSub, detachSub, assignSub } = useSubItems();
-  const { rooms, loading: roomsLoading, error: roomsError, fetchRooms, createRoom } = useGetRooms(propProjectId);
+  const { rooms, loading: roomsLoading, error: roomsError, fetchRooms, createRoom } = useGetRooms(effectiveProjectId);
   const { vendors } = useGetAllVendors();
-
-  const {
-    editingRowId,
-    search,
-    roomFilter,
-    groupByPage,
-    groupByRoom,
-    section,
-    projectId,
-  } = useSelector((state) => state.budget);
   const [exporting, setExporting] = useState(null);
   const [createRoomDialogOpen, setCreateRoomDialogOpen] = useState(false);
   const [createItemDialogOpen, setCreateItemDialogOpen] = useState(false);
@@ -147,18 +148,18 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
 
   // Sync projectId from prop into Redux and fetch rooms
   useEffect(() => {
-    if (propProjectId) {
-      dispatch(setProjectIdAction(propProjectId));
+    if (effectiveProjectId) {
+      dispatch(setProjectIdAction(effectiveProjectId));
     }
-  }, [propProjectId, dispatch]);
+  }, [effectiveProjectId, dispatch]);
 
   // Fetch rooms when projectId is set
   useEffect(() => {
-    if (propProjectId) {
+    if (effectiveProjectId) {
       fetchRooms();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [propProjectId]);
+  }, [effectiveProjectId]);
 
   // Re-fetch items whenever the parent signals a refresh (e.g. after budget generation)
   useEffect(() => {
@@ -338,6 +339,13 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
           lastTotal = 0;
         }
         if (!item.hidden_from_total) lastTotal += item.extended || 0;
+        if (Array.isArray(item.subitems)) {
+          item.subitems.forEach((sub) => {
+            if (!sub?.hidden_from_total) {
+              lastTotal += sub?.extended || 0;
+            }
+          });
+        }
       } else if (groupByRoom) {
         const roomId = typeof item.room === "object" ? item.room?._id : item.room;
         const roomObj = rooms.find((r) => r._id === roomId);
@@ -428,7 +436,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
     return rows;
   };
 
-  if (!propProjectId) {
+  if (!effectiveProjectId) {
     return (
       <div className="flex items-center justify-center py-16 text-muted-foreground text-sm">
         No project selected. Open a project to view its budget.

@@ -4,37 +4,85 @@ import { addSubItem, updateSubItem, deleteSubItem, detachSubItem, assignToParent
 
 export function useSubItems() {
     const dispatch = useDispatch()
-    const { projectId, section, page, search, groupByPage, groupByRoom } = useSelector((state) => state.budget)
+    const {
+        projectId,
+        section,
+        page,
+        pageSize,
+        search,
+        roomFilter,
+        groupByPage,
+        groupByRoom,
+    } = useSelector((state) => state.budget)
+
+    const refetchBudget = useCallback(() => {
+        dispatch(
+            fetchBudgetItems({
+                projectId,
+                section,
+                page,
+                pageSize,
+                search,
+                roomFilter,
+                groupByPage,
+                groupByRoom,
+            })
+        )
+    }, [dispatch, projectId, section, page, pageSize, search, roomFilter, groupByPage, groupByRoom])
 
     const addSub = useCallback(
-        (itemId, data) => dispatch(addSubItem({ projectId, itemId, data })),
-        [dispatch, projectId]
+        async (itemId, data) => {
+            const res = await dispatch(addSubItem({ projectId, itemId, data }))
+            if (res?.meta?.requestStatus === 'fulfilled') {
+                refetchBudget()
+            }
+            return res
+        },
+        [dispatch, projectId, refetchBudget]
     )
 
     const updateSub = useCallback(
-        (itemId, subId, data) => dispatch(updateSubItem({ projectId, itemId, subId, data })),
-        [dispatch, projectId]
+        async (itemId, subId, data) => {
+            const res = await dispatch(updateSubItem({ projectId, itemId, subId, data }))
+            if (res?.meta?.requestStatus === 'fulfilled') {
+                refetchBudget()
+            }
+            return res
+        },
+        [dispatch, projectId, refetchBudget]
     )
 
     const deleteSub = useCallback(
-        (itemId, subId) => dispatch(deleteSubItem({ projectId, itemId, subId })),
-        [dispatch, projectId]
+        async (itemId, subId) => {
+            const res = await dispatch(deleteSubItem({ projectId, itemId, subId }))
+            if (res?.meta?.requestStatus === 'fulfilled') {
+                refetchBudget()
+            }
+            return res
+        },
+        [dispatch, projectId, refetchBudget]
     )
 
     const detachSub = useCallback(
-        (itemId, subId) => dispatch(detachSubItem({ projectId, itemId, subId })),
-        [dispatch, projectId]
+        async (itemId, subId) => {
+            const res = await dispatch(detachSubItem({ projectId, itemId, subId }))
+            if (res?.meta?.requestStatus === 'fulfilled') {
+                refetchBudget()
+            }
+            return res
+        },
+        [dispatch, projectId, refetchBudget]
     )
 
     const assignSub = useCallback(
         async (itemId, parentId) => {
             const res = await dispatch(assignToParent({ projectId, itemId, parentId }))
-            if (!res.error) {
-                dispatch(fetchBudgetItems({ projectId, section, page, search, groupByPage, groupByRoom }))
+            if (res?.meta?.requestStatus === 'fulfilled') {
+                refetchBudget()
             }
             return res
         },
-        [dispatch, projectId, section, page, search, groupByPage, groupByRoom]
+        [dispatch, projectId, refetchBudget]
     )
 
     return { addSub, updateSub, deleteSub, detachSub, assignSub }
