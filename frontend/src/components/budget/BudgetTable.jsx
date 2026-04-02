@@ -146,6 +146,31 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
     setColumnVisibility(getDefaultColumnVisibility());
   };
 
+  const getRoomDisplayName = (item) =>
+    item.room_name ||
+    (typeof item.room === "object" ? item.room?.name : null) ||
+    rooms.find((r) => r._id === (typeof item.room === "object" ? item.room?._id : item.room))?.name ||
+    "Unassigned Room";
+
+  const roomSections = useMemo(() => {
+    if (!groupByRoom) return [];
+
+    const sections = [];
+    const sectionMap = new Map();
+
+    sortedItems.forEach((item) => {
+      const roomName = getRoomDisplayName(item);
+      if (!sectionMap.has(roomName)) {
+        const section = { key: roomName, items: [] };
+        sectionMap.set(roomName, section);
+        sections.push(section);
+      }
+      sectionMap.get(roomName).items.push(item);
+    });
+
+    return sections;
+  }, [groupByRoom, sortedItems, rooms]);
+
   // Sync projectId from prop into Redux and fetch rooms
   useEffect(() => {
     if (effectiveProjectId) {
@@ -304,12 +329,12 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
   };
 
   // ── Group headers + room subtotals ────────────────────────────────────────
-  const buildRows = () => {
+  const buildRows = (sourceItems = sortedItems) => {
     const rows = [];
     let lastGroupKey = null;
     let lastTotal = null;
 
-    sortedItems.forEach((item, idx) => {
+    sourceItems.forEach((item) => {
       if (groupByPage) {
         const key = item.page_no;
         if (key !== lastGroupKey) {
@@ -560,7 +585,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-[200px]">
+            <DropdownMenuContent align="start" className="w-50">
               {rooms.map((room) => (
                 <DropdownMenuCheckboxItem
                   key={room._id}
@@ -577,7 +602,7 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
               )}
               <DropdownMenuSeparator />
               <button
-                className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 text-primary font-medium focus:bg-accent"
+                className="relative flex w-full cursor-default select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground data-disabled:pointer-events-none data-disabled:opacity-50 text-primary font-medium focus:bg-accent"
                 onClick={() => setCreateRoomDialogOpen(true)}
               >
                 <Plus className="mr-2 h-4 w-4" />
@@ -608,54 +633,152 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
       />
 
       {/* Table */}
-      <div className="rounded-md border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              {BUDGET_TABLE_COLUMNS.filter((col) => columnVisibility[col.id]).map((col) => (
-                <TableHead key={col.id} className={col.headerClassName}>
-                  {col.id === "specNo" ? (
-                    <div
-                      className="flex items-center gap-1 cursor-pointer select-none group"
-                      onClick={toggleSort}
-                    >
-                      <span>{col.label}</span>
-                      {sortOrder === "asc" ? (
-                        <ArrowUp className="h-3 w-3 text-primary shrink-0" />
-                      ) : sortOrder === "desc" ? (
-                        <ArrowDown className="h-3 w-3 text-primary shrink-0" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      )}
-                    </div>
-                  ) : (
-                    col.label
-                  )}
-                </TableHead>
-              ))}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {sortedItems.length === 0 && !loading && (
-              <TableRow>
-                <TableCell colSpan={visibleColumnCount} className="h-24 text-center">
-                  No budget items found.
-                </TableCell>
-              </TableRow>
-            )}
-            {buildRows()}
-          </TableBody>
-        </Table>
-      </div>
+      {groupByRoom ? (
+        <div className="space-y-6">
+          {roomSections.length === 0 && !loading && (
+            <div className="rounded-md border bg-card p-8 text-center text-muted-foreground">
+              No budget items found.
+            </div>
+          )}
 
-      {/* Pagination */}
-      <PaginationControls
-        page={page}
-        pageSize={pageSize}
-        total={total}
-        onPageChange={handlePageChange}
-        onPageSizeChange={handlePageSizeChange}
-      />
+          {roomSections.map((section) => {
+            const roomTotal = roomTotals[section.key] ?? 0;
+
+            return (
+              <div key={section.key} className="rounded-md border bg-card shadow-sm">
+                <div className="flex items-start justify-between gap-3 border-b bg-muted/30 px-4 py-3">
+                  <div>
+                    <h2 className="text-sm font-semibold text-foreground">
+                      {section.key}
+                    </h2>
+                    <p className="text-xs text-muted-foreground">
+                      {section.items.length} budget item{section.items.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs text-muted-foreground">Room Total</div>
+                    <div className="text-lg font-bold text-primary">
+                      {formatCurrency(roomTotal)}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        {BUDGET_TABLE_COLUMNS.filter((col) => columnVisibility[col.id]).map((col) => (
+                          <TableHead key={col.id} className={col.headerClassName}>
+                            {col.id === "specNo" ? (
+                              <div
+                                className="flex items-center gap-1 cursor-pointer select-none group"
+                                onClick={toggleSort}
+                              >
+                                <span>{col.label}</span>
+                                {sortOrder === "asc" ? (
+                                  <ArrowUp className="h-3 w-3 text-primary shrink-0" />
+                                ) : sortOrder === "desc" ? (
+                                  <ArrowDown className="h-3 w-3 text-primary shrink-0" />
+                                ) : (
+                                  <ArrowUpDown className="h-3 w-3 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                )}
+                              </div>
+                            ) : (
+                              col.label
+                            )}
+                          </TableHead>
+                        ))}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {section.items.length === 0 && !loading && (
+                        <TableRow>
+                          <TableCell colSpan={visibleColumnCount} className="h-24 text-center">
+                            No budget items found.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                      {section.items.map((item) => (
+                        <BudgetRow
+                          key={item._id}
+                          item={item}
+                          isEditing={editingRowId === item._id}
+                          onStartEdit={handleStartEdit}
+                          onSave={handleSave}
+                          onCancel={handleCancel}
+                          onDelete={handleDelete}
+                          onInsert={handleInsert}
+                          onToggleHide={handleToggleHide}
+                          onAddSubItem={addSub}
+                          onUpdateSubItem={updateSub}
+                          onDeleteSubItem={deleteSub}
+                          onDetachSubItem={detachSub}
+                          onAssignSubItem={assignSub}
+                          rootItems={items}
+                          rooms={rooms}
+                          vendors={vendors}
+                          visibleColumns={columnVisibility}
+                        />
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <>
+          <div className="rounded-md border bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  {BUDGET_TABLE_COLUMNS.filter((col) => columnVisibility[col.id]).map((col) => (
+                    <TableHead key={col.id} className={col.headerClassName}>
+                      {col.id === "specNo" ? (
+                        <div
+                          className="flex items-center gap-1 cursor-pointer select-none group"
+                          onClick={toggleSort}
+                        >
+                          <span>{col.label}</span>
+                          {sortOrder === "asc" ? (
+                            <ArrowUp className="h-3 w-3 text-primary shrink-0" />
+                          ) : sortOrder === "desc" ? (
+                            <ArrowDown className="h-3 w-3 text-primary shrink-0" />
+                          ) : (
+                            <ArrowUpDown className="h-3 w-3 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          )}
+                        </div>
+                      ) : (
+                        col.label
+                      )}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {sortedItems.length === 0 && !loading && (
+                  <TableRow>
+                    <TableCell colSpan={visibleColumnCount} className="h-24 text-center">
+                      No budget items found.
+                    </TableCell>
+                  </TableRow>
+                )}
+                {buildRows()}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Pagination */}
+          <PaginationControls
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
+          />
+        </>
+      )}
       {/* Modals & Dialogs */}
       <CreateRoomDialog
         open={createRoomDialogOpen}

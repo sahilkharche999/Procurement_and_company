@@ -12,7 +12,8 @@ export function useGetBudgetItems() {
 
     const fetch = useCallback(() => {
         if (!projectId) return
-        dispatch(fetchBudgetItems({ projectId, section, page, pageSize, search, roomFilter, groupByPage, groupByRoom }))
+        const effectivePageSize = groupByRoom ? Math.max(pageSize, 1000) : pageSize
+        dispatch(fetchBudgetItems({ projectId, section, page, pageSize: effectivePageSize, search, roomFilter, groupByPage, groupByRoom }))
     }, [dispatch, projectId, section, page, pageSize, search, roomFilter, groupByPage, groupByRoom])
 
     useEffect(() => {
