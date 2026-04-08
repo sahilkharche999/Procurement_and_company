@@ -4,7 +4,6 @@ routes/projects.py
 All /projects/* REST endpoints, backed by MongoDB via the project service.
 """
 
-import json
 import os
 import time
 import uuid
@@ -29,26 +28,6 @@ from services.project_service import LOCAL_FILE_DB
 from services.v2_room_analysis_orchestrator import run_room_analysis_pipeline
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
-
-
-def _local_url_to_abs_path(local_url: str) -> str:
-    rel = local_url.replace("/local_file_db/", "").lstrip("/\\")
-    return os.path.join(LOCAL_FILE_DB, rel)
-
-
-def _abs_path_to_local_url(abs_path: str) -> str:
-    rel = abs_path.replace(LOCAL_FILE_DB, "").lstrip("/\\").replace("\\", "/")
-    return f"/local_file_db/{rel}"
-
-
-async def _resolve_sectioned_manifest_path(project_id: str) -> str:
-    doc = await project_service.get_project_by_id(project_id)
-    if doc:
-        manifest_url = doc.get("sectioned_diagram_registry")
-        if isinstance(manifest_url, str) and manifest_url.startswith("/local_file_db/"):
-            return _local_url_to_abs_path(manifest_url)
-
-    return os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "pdf_processing", "sectioned_diagram_registry.json")
 
 
 # ── Create ─────────────────────────────────────────────────────────────────────
@@ -102,21 +81,15 @@ async def update_project(project_id: str, body: ProjectUpdate):
 
 # ── Attach diagram metadata ────────────────────────────────────────────────────
 @router.post("/{project_id}/attach-metadata")
-async def attach_metadata(project_id: str, body: dict):
+async def attach_metadata(project_id: str, body: dict | None = None):
     """
-    body: { "metadata_path": "/absolute/path/to/metadata.json" }
-
-    Reads the selected_images_metadata.json produced by the processing pipeline
-    and stores its content as selected_diagram_metadata inside the MongoDB project.
-    Also stamps the project's MongoDB _id back into the JSON file.
+    Refreshes `selected_diagram_metadata` from MongoDB-selected diagrams.
+    Legacy `metadata_path` is accepted but ignored.
     """
-    metadata_path = body.get("metadata_path", "")
-    if not metadata_path:
-        raise HTTPException(status_code=400, detail="metadata_path is required")
-
+    metadata_path = (body or {}).get("metadata_path")
     doc = await project_service.attach_diagram_metadata(project_id, metadata_path)
     if not doc:
-        raise HTTPException(status_code=404, detail="Project or metadata file not found")
+        raise HTTPException(status_code=404, detail="Project not found")
     return ProjectOut.from_mongo(doc)
 
 
@@ -162,30 +135,34 @@ async def delete_project(project_id: str):
 @router.get("/{project_id}/available-pages")
 async def get_available_pages(project_id: str):
     """
-    Returns all detected diagrams for this project from its local_file_db manifest.
+    Returns all detected diagrams for this project from MongoDB.
     Used in the 'Add Pages' tab of the Source manager.
     """
-    manifest_path = await _resolve_sectioned_manifest_path(project_id)
-    if not os.path.exists(manifest_path):
-        return {"images": [], "total": 0}
+    diagrams_coll = get_diagrams_collection()
+    pages_coll = get_pages_collection()
 
-    with open(manifest_path) as f:
-        data = json.load(f)
+    project_filter = ObjectId(project_id) if ObjectId.is_valid(project_id) else project_id
+    diagrams = await diagrams_coll.find({"project": project_filter}).to_list(length=None)
+
+    page_ids = [d.get("page") for d in diagrams if d.get("page")]
+    page_map = {}
+    if page_ids:
+        pages = await pages_coll.find({"_id": {"$in": page_ids}}).to_list(length=None)
+        page_map = {p["_id"]: p.get("page_no", 0) for p in pages}
 
     images = []
-    for img in data.get("images", []):
-        img_url = img.get("url")
-        if not img_url and img.get("path"):
-            img_url = _abs_path_to_local_url(img["path"])
-        if not img_url:
-            img_url = f"/local_file_db/project_{project_id}/pdf_processing/extracted_diagrams/{img['filename']}"
+    for d in diagrams:
         images.append({
-            "filename": img["filename"],
-            "page_num": img["page_num"],
-            "label": img["label"],
-            "sub_index": img["sub_index"],
-            "url": img_url,
+            "id": str(d["_id"]),
+            "filename": d.get("filename", ""),
+            "page_num": page_map.get(d.get("page"), 0),
+            "label": d.get("label", ""),
+            "sub_index": d.get("sub_index", 0),
+            "url": d.get("diagram_image_url", ""),
+            "is_selected": d.get("is_selected", False),
         })
+
+    images.sort(key=lambda x: (x.get("page_num", 0), x.get("sub_index", 0), x.get("filename", "")))
     return {"images": images, "total": len(images)}
 
 
@@ -246,30 +223,32 @@ async def update_project_saved_pages(project_id: str, body: dict):
 
     # Handle additions
     if add_list:
-        # Load the processing manifest to get data for these files
-        manifest_path = await _resolve_sectioned_manifest_path(project_id)
-        if os.path.exists(manifest_path):
-            with open(manifest_path) as f:
-                manifest_data = json.load(f)
-            manifest_images = {img["filename"]: img for img in manifest_data.get("images", [])}
+        existing_fnames = {img["filename"] for img in images}
+        add_diagrams = await diagrams_coll.find(
+            {
+                "project": {"$in": project_values},
+                "filename": {"$in": add_list},
+            }
+        ).to_list(length=None)
 
-            existing_fnames = {img["filename"] for img in images}
-            for fname in add_list:
-                if fname in existing_fnames: continue
-                if fname in manifest_images:
-                    m_img = manifest_images[fname]
-                    img_url = m_img.get("url")
-                    if not img_url and m_img.get("path"):
-                        img_url = _abs_path_to_local_url(m_img["path"])
-                    if not img_url:
-                        img_url = f"/local_file_db/project_{project_id}/pdf_processing/extracted_diagrams/{fname}"
-                    images.append({
-                        "filename": fname,
-                        "page_number": m_img.get("page_num", 0),
-                        "label": m_img.get("label", "full"),
-                        "sub_index": m_img.get("sub_index", 0),
-                        "url": img_url
-                    })
+        add_page_ids = [d.get("page") for d in add_diagrams if d.get("page")]
+        add_page_map = {}
+        if add_page_ids:
+            add_pages = await pages_coll.find({"_id": {"$in": add_page_ids}}).to_list(length=None)
+            add_page_map = {p["_id"]: p.get("page_no", 0) for p in add_pages}
+
+        for d in add_diagrams:
+            fname = d.get("filename", "")
+            if not fname or fname in existing_fnames:
+                continue
+            images.append({
+                "filename": fname,
+                "page_number": add_page_map.get(d.get("page"), 0),
+                "label": d.get("label", "full"),
+                "sub_index": d.get("sub_index", 0),
+                "url": d.get("diagram_image_url", ""),
+                "diagram_id": str(d.get("_id")),
+            })
 
         # Mark corresponding diagrams as selected in MongoDB.
         await diagrams_coll.update_many(
@@ -454,25 +433,8 @@ async def extract_rooms(project_id: str, body: dict):
             "created_at": datetime.now().isoformat()
         })
 
-    if results and filename:
-        # 1. Update selected_image_registry.json (Single Source of Truth File)
-        registry_path = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "selected_image_registry.json")
-        if os.path.exists(registry_path):
-            with open(registry_path, 'r') as f:
-                try:
-                    registry_data = json.load(f)
-                except Exception:
-                    registry_data = {}
-
-            for img_doc in registry_data.get("images", []):
-                if img_doc.get("filename") == filename:
-                    img_doc["rooms"] = results
-                    break
-
-            with open(registry_path, 'w') as f:
-                json.dump(registry_data, f, indent=4)
-
-        # 2. Insert into the standalone Rooms schema and update Diagram schema
+    if results:
+        # Persist rooms into standalone Rooms schema and link Diagram schema
         diagrams_coll = get_diagrams_collection()
         rooms_coll = get_rooms_collection()
 
@@ -482,7 +444,7 @@ async def extract_rooms(project_id: str, body: dict):
         if diagram_id and len(diagram_id) == 24:
             diagram = await diagrams_coll.find_one({"_id": ObjectId(diagram_id)})
 
-        if not diagram:
+        if not diagram and filename:
             # Fallback to finding by project_id and original filename logic (less reliable due to renames)
             diagram = await diagrams_coll.find_one({"project": ObjectId(project_id), "filename": filename})
 
@@ -541,33 +503,7 @@ async def extract_rooms(project_id: str, body: dict):
 async def delete_room(project_id: str, room_id: str, image_filename: str):
     """Deletes a specific extracted room mask based on its unique ID."""
 
-    # 1. Update selected_image_registry.json physical file
-    registry_path = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "selected_image_registry.json")
-    if os.path.exists(registry_path):
-        with open(registry_path, 'r') as f:
-            try:
-                registry_data = json.load(f)
-            except Exception:
-                registry_data = {}
-
-        for img_doc in registry_data.get("images", []):
-            if img_doc.get("filename") == image_filename:
-                # Find the room to delete the physical file if it exists
-                rooms_list = img_doc.get("rooms", [])
-                for r in rooms_list:
-                    if r.get("id") == room_id or r.get("name") == room_id:
-                        saved_path = r.get("saved_path")
-                        if saved_path and os.path.exists(saved_path):
-                            os.remove(saved_path)
-                        break
-                # Remove from registry metadata
-                img_doc["rooms"] = [r for r in rooms_list if r.get("id") != room_id and r.get("name") != room_id]
-                break
-
-        with open(registry_path, 'w') as f:
-            json.dump(registry_data, f, indent=4)
-
-    # 2. Apply delete on MongoDB standalone schemas
+    # Apply delete on MongoDB standalone schemas
     rooms_coll = get_rooms_collection()
     diagrams_coll = get_diagrams_collection()
 
@@ -584,6 +520,12 @@ async def delete_room(project_id: str, room_id: str, image_filename: str):
 
     room_to_del = await rooms_coll.find_one(delete_query)
     if room_to_del:
+        room_url = room_to_del.get("room_image_url", "")
+        if isinstance(room_url, str) and room_url.startswith("/local_file_db/"):
+            abs_path = os.path.join(LOCAL_FILE_DB, room_url.replace("/local_file_db/", "").lstrip("/\\"))
+            if os.path.exists(abs_path):
+                os.remove(abs_path)
+
         await rooms_coll.delete_one({"_id": room_to_del["_id"]})
         # Unlink from parent Diagram document
         await diagrams_coll.update_one(

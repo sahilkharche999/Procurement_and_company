@@ -1,6 +1,4 @@
-import json
 import os
-import shutil
 from datetime import datetime
 
 from bson import ObjectId
@@ -157,8 +155,6 @@ async def save_selected_images(job_id: str, body: dict):
         raise HTTPException(400, "Job not complete yet")
 
     selected_names = set(body.get("selected", []))
-    selected_dir = os.path.join(job.get("job_dir", ""), "extracted_diagrams", "selected")
-    os.makedirs(selected_dir, exist_ok=True)
 
     diagrams_coll = get_diagrams_collection()
     pages_coll = get_pages_collection()
@@ -177,7 +173,6 @@ async def save_selected_images(job_id: str, body: dict):
     await diagrams_coll.update_many(diag_filter, {"$set": {"is_selected": False}})
 
     result_images = []
-    rel_base = job.get("job_dir", "").replace(LOCAL_FILE_DB, "").lstrip("/\\").replace("\\", "/")
 
     for d in diagrams:
         if str(d["_id"]) in selected_names:
@@ -185,13 +180,7 @@ async def save_selected_images(job_id: str, body: dict):
             # Optional: update the page is_selected to True if any of its diagrams are selected
             await pages_coll.update_one({"_id": d["page"]}, {"$set": {"is_selected": True}})
 
-            # Keep copying the physical files and populating metadata for backward compatibility (selected_images_metadata.json etc)
-            rel_source_url = d.get("diagram_image_url", "").replace("/local_file_db/", "").lstrip("/")
-            src_path = os.path.join(LOCAL_FILE_DB, rel_source_url)
-            dst_path = os.path.join(selected_dir, d.get("filename"))
-            if os.path.exists(src_path):
-                shutil.copy(src_path, dst_path)
-
+            # Mongo is the source of truth; no file copy is needed here.
             result_images.append({
                 "id": str(d["_id"]),
                 "filename": d.get("filename"),
@@ -199,9 +188,7 @@ async def save_selected_images(job_id: str, body: dict):
                 "label": d.get("label"),
                 "diagram_seq": d.get("diagram_seq", "a"),
                 "sub_index": d.get("sub_index", 0),
-                "original_path": src_path,
-                "saved_path": dst_path,
-                "url": f"/local_file_db/{rel_base}/extracted_diagrams/selected/{d.get('filename')}",
+                "url": d.get("diagram_image_url", ""),
             })
 
     metadata = {
@@ -211,9 +198,6 @@ async def save_selected_images(job_id: str, body: dict):
         "dpi": job.get("dpi"),
         "images": result_images,
     }
-    meta_path = os.path.join(selected_dir, "selected_images_metadata.json")
-    with open(meta_path, "w") as f:
-        json.dump(metadata, f, indent=2)
 
     return metadata
 
