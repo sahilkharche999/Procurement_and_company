@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import cv2
 from bson import ObjectId
@@ -51,8 +52,8 @@ def run_room_analysis_pipeline(room_id: str, project_id: str, room_image_url: st
         if not os.path.exists(input_image_path):
             raise FileNotFoundError(f"Source image not found at {input_image_path}")
 
-        # Create output directory for this room's analysis artifacts
-        room_output_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "rooms", str(room_id), "analysis")
+        # Create output directory for this room's temporary analysis artifacts
+        room_output_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "rooms", str(room_id), "temp_analysis")
         os.makedirs(room_output_dir, exist_ok=True)
 
         # Define output artifact paths (V2 VLM pipeline)
@@ -62,7 +63,7 @@ def run_room_analysis_pipeline(room_id: str, project_id: str, room_image_url: st
         objects_pixels_json_path = os.path.join(room_output_dir, "vlm_objects_pixels.json")
         masks_polygons_json_path = os.path.join(room_output_dir, "masks_polygons.json")
 
-        base_url = f"/local_file_db/project_{project_id}/rooms/{room_id}/analysis"
+        base_url = f"/local_file_db/project_{project_id}/rooms/{room_id}/temp_analysis"
 
         # 2. Preprocess Image
         update_room_analysis_status(room_id, "preprocessing", 10, "Preprocessing image for SAM...")
@@ -143,7 +144,17 @@ def run_room_analysis_pipeline(room_id: str, project_id: str, room_image_url: st
                 "grid_cols": grid_meta.get("cols"),
             }
         )
-        print(f"[Orchestrator] Successfully completed analysis for room {room_id}")
+
+        # 8. Cleanup temporary analysis artifacts after successful persistence to MongoDB
+        # try:
+        #     if os.path.isdir(room_output_dir):
+        #         shutil.rmtree(room_output_dir)
+        #         print(f"[Orchestrator] Cleaned temporary analysis folder for room {room_id}: {room_output_dir}")
+        # except Exception as cleanup_err:
+        #     # Non-blocking cleanup: do not mark job as failed if temp cleanup fails
+        #     print(f"[Orchestrator] Warning: failed to clean temp analysis folder for room {room_id}: {cleanup_err}")
+
+        # print(f"[Orchestrator] Successfully completed analysis for room {room_id}")
 
     except Exception as e:
         import traceback

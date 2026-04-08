@@ -83,16 +83,8 @@ export function FloorPlanPage() {
           });
         }
 
-        // 2. Attach metadata (user-selected images)
-        if (metadata?.images?.[0]?.saved_path) {
-          const firstPath = metadata.images[0].saved_path;
-          const dir = firstPath.substring(0, firstPath.lastIndexOf("/"));
-          const metadataPath = `${dir}/selected_images_metadata.json`;
-
-          await api.post(`/projects/${projectId}/attach-metadata`, {
-            metadata_path: metadataPath,
-          });
-        }
+        // 2. Refresh selected diagram metadata from Mongo state
+        await api.post(`/projects/${projectId}/attach-metadata`, {});
       } catch (e) {
         console.warn("[Project] sync failed:", e);
       }
