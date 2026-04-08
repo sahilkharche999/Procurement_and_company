@@ -46,6 +46,16 @@ def _update_job(jobs_coll, job_id: str, **kwargs):
     jobs_coll.update_one({"_id": ObjectId(job_id)}, {"$set": kwargs})
 
 
+def _pdf_suffix_from_id(pdf_id: str) -> str:
+    raw = (pdf_id or "")[-6:]
+    safe = "".join(ch for ch in raw if ch.isalnum()).lower()
+    return safe or "unknown"
+
+
+def _diagram_filename(page_num: int, sub_index: int, pdf_suffix: str) -> str:
+    return f"p{page_num:03d}_d{sub_index:02d}_{pdf_suffix}.png"
+
+
 def _yolo_crop_page(img_path: str, out_path: str) -> bool:
     if _yolo_model is None:
         return False
@@ -132,7 +142,7 @@ def _detect_multiple_diagrams(image_path: str, min_area_ratio: float = 0.05):
     return diagram_regions
 
 
-def _crop_regions(image_path: str, page_num: int, regions, out_dir: str):
+def _crop_regions(image_path: str, page_num: int, regions, out_dir: str, pdf_suffix: str):
     import cv2
     image = cv2.imread(image_path)
     if image is None:
@@ -150,14 +160,14 @@ def _crop_regions(image_path: str, page_num: int, regions, out_dir: str):
         h = max(1, min(h, height - y))
         cropped = image[y:y + h, x:x + w]
         sub_letter = chr(ord("a") + idx)
-        filename = f"crop{page_num}.{sub_letter}.png"
+        filename = _diagram_filename(page_num, idx, pdf_suffix)
         out_path = os.path.join(out_dir, filename)
         cv2.imwrite(out_path, cropped)
         created.append((out_path, filename, region["label"], sub_letter))
     return created
 
 
-def _sync_update_mongodb_project(project_id: str, registry_url: str, page_paths: list, all_images: list):
+def _sync_update_mongodb_project(project_id: str, pdf_id: str, registry_url: str, page_paths: list, all_images: list):
     try:
         client = MongoClient(MONGO_URI)
         db = client[MONGO_DB_NAME]
@@ -181,16 +191,29 @@ def _sync_update_mongodb_project(project_id: str, registry_url: str, page_paths:
             }
         )
 
+        # Re-processing same PDF should replace existing pages/diagrams for that PDF
+        old_page_ids = pages_coll.distinct(
+            "_id",
+            {
+                "project": ObjectId(project_id),
+                "pdf_id": str(pdf_id),
+            },
+        )
+        if old_page_ids:
+            diagrams_coll.delete_many({"project": ObjectId(project_id), "page": {"$in": old_page_ids}})
+            pages_coll.delete_many({"_id": {"$in": old_page_ids}})
+
         page_ids = []
         for idx, page_path in enumerate(page_paths):
             page_num = idx + 1
             # Build URL path for the database instead of absolute file path
-            local_path = f"/local_file_db/project_{project_id}/pdf_processing/temp/page_{page_num}_300dpi.png"
+            local_path = f"/local_file_db/project_{project_id}/pdf_processing/pdf_{pdf_id}/temp/page_{page_num}_300dpi.png"
 
             # create page record
             new_page = {
                 "project": ObjectId(project_id),
                 "project_source": project_source_id,
+                "pdf_id": str(pdf_id),
                 "page_no": page_num,
                 "is_selected": False,
                 "page_image_url": local_path,
@@ -204,10 +227,11 @@ def _sync_update_mongodb_project(project_id: str, registry_url: str, page_paths:
             for img in all_images:
                 if img["page_num"] == page_num:
                     diag_filename = img["filename"]
-                    diag_url = f"/local_file_db/project_{project_id}/pdf_processing/sectioned/{diag_filename}"
+                    diag_url = f"/local_file_db/project_{project_id}/pdf_processing/pdf_{pdf_id}/extracted_diagrams/{diag_filename}"
                     new_diagram = {
                         "project": ObjectId(project_id),
                         "page": page_id,
+                        "pdf_id": str(pdf_id),
                         "diagram_seq": img["diagram_seq"],
                         "diagram_image_url": diag_url,
                         "filename": img["filename"],
@@ -247,10 +271,13 @@ def run_processing(job_id: str, pdf_path: str, dpi: int, min_area_pct: float):
 
     job_dir = job.get("job_dir", "")
     temp_dir = os.path.join(job_dir, "temp")
-    crops_dir = os.path.join(job_dir, "sectioned")
-    sectioned_dir = os.path.join(job_dir, "sectioned")
+    main_crops_dir = os.path.join(temp_dir, "main_crops")
+    extracted_dir = os.path.join(job_dir, "extracted_diagrams")
+    pdf_id = str(job.get("pdf_id", ""))
+    pdf_suffix = _pdf_suffix_from_id(pdf_id)
     os.makedirs(temp_dir, exist_ok=True)
-    os.makedirs(crops_dir, exist_ok=True)
+    os.makedirs(main_crops_dir, exist_ok=True)
+    os.makedirs(extracted_dir, exist_ok=True)
 
     try:
         _update_job(jobs_coll, job_id, status="processing", step="Step 1/3 — Converting PDF to images (300 DPI)",
@@ -278,7 +305,7 @@ def run_processing(job_id: str, pdf_path: str, dpi: int, min_area_pct: float):
 
         crop_paths = []
         for idx, img_path in enumerate(page_paths):
-            out_path = os.path.join(crops_dir, f"crop{idx + 1}.png")
+            out_path = os.path.join(main_crops_dir, f"main_p{idx + 1:03d}_{pdf_suffix}.png")
             if not yolo_available or not _yolo_crop_page(img_path, out_path):
                 shutil.copy(img_path, out_path)
             crop_paths.append(out_path)
@@ -295,8 +322,8 @@ def run_processing(job_id: str, pdf_path: str, dpi: int, min_area_pct: float):
                 continue
             regions = _detect_multiple_diagrams(crop_path, min_area_ratio=min_area_ratio)
             if len(regions) == 1 and regions[0]["label"] == "full":
-                filename_single = f"crop{page_num}.a.png"
-                dest = os.path.join(sectioned_dir, filename_single)
+                filename_single = _diagram_filename(page_num, 0, pdf_suffix)
+                dest = os.path.join(extracted_dir, filename_single)
                 shutil.copy2(crop_path, dest)
                 all_images.append({
                     "path": dest,
@@ -307,7 +334,7 @@ def run_processing(job_id: str, pdf_path: str, dpi: int, min_area_pct: float):
                     "sub_index": 0,
                 })
             else:
-                created = _crop_regions(crop_path, page_num, regions, sectioned_dir)
+                created = _crop_regions(crop_path, page_num, regions, extracted_dir, pdf_suffix)
                 for si, (out_path, filename, label, diagram_seq) in enumerate(created):
                     all_images.append({
                         "path": out_path,
@@ -326,8 +353,8 @@ def run_processing(job_id: str, pdf_path: str, dpi: int, min_area_pct: float):
 
         # Update MongoDB project document (Sync call in threadpool)
         if job.get("project_id"):
-            registry_url = f"/local_file_db/project_{job.get('project_id')}/pdf_processing/sectioned_diagram_registry.json"
-            _sync_update_mongodb_project(job.get("project_id"), registry_url, page_paths, all_images)
+            registry_url = f"/local_file_db/project_{job.get('project_id')}/pdf_processing/pdf_{pdf_id}/sectioned_diagram_registry.json"
+            _sync_update_mongodb_project(job.get("project_id"), pdf_id, registry_url, page_paths, all_images)
 
         _update_job(jobs_coll, job_id, status="done", step="Complete — all steps finished", progress=100)
     except Exception as e:

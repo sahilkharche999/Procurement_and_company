@@ -4,7 +4,7 @@ from datetime import datetime
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Query, UploadFile, File, Form
 
-from config import BASE_DIR
+from config import BASE_DIR, LOCAL_FILE_DB
 from db.mongo import get_projects_collection, get_project_sources_collection, get_pdf_documents_collection
 from schemas.budget import PdfDocumentOut
 
@@ -12,6 +12,11 @@ router = APIRouter(prefix="/pdf", tags=["PDF"])
 
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads", "pdfs")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+def _local_url_to_abs_path(local_url: str) -> str:
+    rel = local_url.replace("/local_file_db/", "").lstrip("/\\")
+    return os.path.join(LOCAL_FILE_DB, rel)
 
 
 @router.post("/upload")
@@ -22,22 +27,6 @@ async def upload_pdf(file: UploadFile = File(...), section: str = Form("general"
     now = datetime.now()
     timestamp = now.strftime("%Y%m%d_%H%M%S")
     project_name = now.strftime("%d-%m-%Y_%-I_%-M_%p")
-
-    safe_name = f"{timestamp}_{file.filename.replace(' ', '_')}"
-    file_path = os.path.join(UPLOAD_DIR, safe_name)
-    content = await file.read()
-    with open(file_path, "wb") as f:
-        f.write(content)
-    file_size = os.path.getsize(file_path)
-
-    page_count = None
-    try:
-        import fitz
-        doc = fitz.open(file_path)
-        page_count = doc.page_count
-        doc.close()
-    except Exception:
-        pass
 
     projects_coll = get_projects_collection()
     project_sources_coll = get_project_sources_collection()
@@ -54,9 +43,29 @@ async def upload_pdf(file: UploadFile = File(...), section: str = Form("general"
     result = await projects_coll.insert_one(new_project)
     project_id = str(result.inserted_id)
 
+    safe_name = f"{timestamp}_{file.filename.replace(' ', '_')}"
+    content = await file.read()
+    project_source_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "source")
+    os.makedirs(project_source_dir, exist_ok=True)
+    file_path = os.path.join(project_source_dir, safe_name)
+    with open(file_path, "wb") as f:
+        f.write(content)
+    file_size = os.path.getsize(file_path)
+
+    page_count = None
+    try:
+        import fitz
+        doc = fitz.open(file_path)
+        page_count = doc.page_count
+        doc.close()
+    except Exception:
+        pass
+
+    source_pdf_url = f"/local_file_db/project_{project_id}/source/{safe_name}"
+
     new_project_source = {
         "project": result.inserted_id,
-        "source_pdf_url": f"/uploads/pdfs/{safe_name}",
+        "source_pdf_url": source_pdf_url,
         "pages": []
     }
     await project_sources_coll.insert_one(new_project_source)
@@ -64,7 +73,7 @@ async def upload_pdf(file: UploadFile = File(...), section: str = Form("general"
     doc_data = {
         "filename": safe_name,
         "original_name": file.filename,
-        "file_path": f"/uploads/pdfs/{safe_name}",
+        "file_path": source_pdf_url,
         "file_size": file_size,
         "section": section,
         "page_count": page_count,
@@ -95,7 +104,12 @@ async def delete_pdf(pdf_id: str):
     if not doc:
         raise HTTPException(404, "PDF not found")
 
-    full_path = os.path.join(UPLOAD_DIR, doc.get("filename", ""))
+    file_url = doc.get("file_path", "")
+    if file_url.startswith("/local_file_db/"):
+        full_path = _local_url_to_abs_path(file_url)
+    else:
+        full_path = os.path.join(UPLOAD_DIR, doc.get("filename", ""))
+
     if os.path.exists(full_path) and os.path.isfile(full_path):
         os.remove(full_path)
 

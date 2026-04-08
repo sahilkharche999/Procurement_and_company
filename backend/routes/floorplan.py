@@ -6,13 +6,27 @@ from datetime import datetime
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Form, BackgroundTasks
 
-from db.mongo import get_diagrams_collection, get_pages_collection, get_pdf_documents_collection, \
-    get_processing_jobs_collection
-from routes.pdf import UPLOAD_DIR
+from db.mongo import get_diagrams_collection, get_pages_collection, get_pdf_documents_collection, get_processing_jobs_collection
 from schemas.budget import JobOut
-from services.pdf_processing import run_processing, LOCAL_FILE_DB, get_yolo_status
+from services.pdf_processing import run_processing, get_yolo_status
+from config import LOCAL_FILE_DB, BASE_DIR
 
 router = APIRouter(prefix="/floorplan", tags=["Floorplan"])
+
+
+def _resolve_pdf_abs_path(pdf_doc: dict) -> str:
+    file_url = pdf_doc.get("file_path", "")
+    if file_url.startswith("/local_file_db/"):
+        rel = file_url.replace("/local_file_db/", "").lstrip("/\\")
+        return os.path.join(LOCAL_FILE_DB, rel)
+
+    upload_dir = os.path.join(BASE_DIR, "uploads", "pdfs")
+    return os.path.join(upload_dir, pdf_doc.get("filename", ""))
+
+
+def _pdf_bucket_name(pdf_id: str) -> str:
+    safe = "".join(ch for ch in str(pdf_id) if ch.isalnum())
+    return f"pdf_{safe or 'unknown'}"
 
 
 @router.post("/process")
@@ -27,7 +41,7 @@ async def start_processing(
     pdf_doc = await pdf_docs_coll.find_one({"_id": ObjectId(pdf_id)})
     if not pdf_doc:
         raise HTTPException(404, "PDF not found")
-    pdf_path = os.path.join(UPLOAD_DIR, pdf_doc.get("filename", ""))
+    pdf_path = _resolve_pdf_abs_path(pdf_doc)
     if not os.path.exists(pdf_path):
         raise HTTPException(404, "PDF file missing on disk")
 
@@ -35,8 +49,8 @@ async def start_processing(
     if not project_id:
         raise HTTPException(400, "PDF is not associated with a MongoDB project")
 
-    # Path: local_file_db/project_{project_id}/pdf_processing/
-    job_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "pdf_processing")
+    # Path: local_file_db/project_{project_id}/pdf_processing/pdf_{pdf_id}/
+    job_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "pdf_processing", _pdf_bucket_name(pdf_id))
     os.makedirs(job_dir, exist_ok=True)
 
     jobs_coll = get_processing_jobs_collection()
@@ -100,10 +114,16 @@ async def get_job_images(job_id: str):
     pages_coll = get_pages_collection()
     diagrams_coll = get_diagrams_collection()
 
-    pages = await pages_coll.find({"project": ObjectId(job.get("project_id"))}).to_list(length=None)
+    page_filter = {"project": ObjectId(job.get("project_id"))}
+    if job.get("pdf_id"):
+        page_filter["pdf_id"] = str(job.get("pdf_id"))
+    pages = await pages_coll.find(page_filter).to_list(length=None)
     page_map = {p["_id"]: p["page_no"] for p in pages}
 
-    diagrams = await diagrams_coll.find({"project": ObjectId(job.get("project_id"))}).to_list(length=None)
+    diag_filter = {"project": ObjectId(job.get("project_id"))}
+    if job.get("pdf_id"):
+        diag_filter["pdf_id"] = str(job.get("pdf_id"))
+    diagrams = await diagrams_coll.find(diag_filter).to_list(length=None)
 
     images = []
     for d in diagrams:
@@ -137,18 +157,24 @@ async def save_selected_images(job_id: str, body: dict):
         raise HTTPException(400, "Job not complete yet")
 
     selected_names = set(body.get("selected", []))
-    selected_dir = os.path.join(job.get("job_dir", ""), "sectioned", "selected")
+    selected_dir = os.path.join(job.get("job_dir", ""), "extracted_diagrams", "selected")
     os.makedirs(selected_dir, exist_ok=True)
 
     diagrams_coll = get_diagrams_collection()
     pages_coll = get_pages_collection()
 
-    diagrams = await diagrams_coll.find({"project": ObjectId(job.get("project_id"))}).to_list(length=None)
-    pages = await pages_coll.find({"project": ObjectId(job.get("project_id"))}).to_list(length=None)
+    diag_filter = {"project": ObjectId(job.get("project_id"))}
+    if job.get("pdf_id"):
+        diag_filter["pdf_id"] = str(job.get("pdf_id"))
+    diagrams = await diagrams_coll.find(diag_filter).to_list(length=None)
+    page_filter = {"project": ObjectId(job.get("project_id"))}
+    if job.get("pdf_id"):
+        page_filter["pdf_id"] = str(job.get("pdf_id"))
+    pages = await pages_coll.find(page_filter).to_list(length=None)
     page_map = {p["_id"]: p["page_no"] for p in pages}
 
     # Reset all to not selected first
-    await diagrams_coll.update_many({"project": ObjectId(job.get("project_id"))}, {"$set": {"is_selected": False}})
+    await diagrams_coll.update_many(diag_filter, {"$set": {"is_selected": False}})
 
     result_images = []
     rel_base = job.get("job_dir", "").replace(LOCAL_FILE_DB, "").lstrip("/\\").replace("\\", "/")
@@ -175,7 +201,7 @@ async def save_selected_images(job_id: str, body: dict):
                 "sub_index": d.get("sub_index", 0),
                 "original_path": src_path,
                 "saved_path": dst_path,
-                "url": f"/local_file_db/{rel_base}/sectioned/selected/{d.get('filename')}",
+                "url": f"/local_file_db/{rel_base}/extracted_diagrams/selected/{d.get('filename')}",
             })
 
     metadata = {
