@@ -59,7 +59,7 @@ add_cors_middleware(app)
 # Static Files
 uploads_path = os.path.join(BASE_DIR, "uploads")
 os.makedirs(uploads_path, exist_ok=True)
-app.mount("/uploads", StaticFiles(directory=uploads_path), name="uploads")
+
 app.mount("/local_file_db", StaticFiles(directory=LOCAL_FILE_DB), name="local_file_db")
 
 # Routers

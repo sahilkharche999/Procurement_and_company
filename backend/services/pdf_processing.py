@@ -1,4 +1,3 @@
-import json
 import os
 import shutil
 from datetime import datetime
@@ -167,7 +166,7 @@ def _crop_regions(image_path: str, page_num: int, regions, out_dir: str, pdf_suf
     return created
 
 
-def _sync_update_mongodb_project(project_id: str, pdf_id: str, registry_url: str, page_paths: list, all_images: list):
+def _sync_update_mongodb_project(project_id: str, pdf_id: str, page_paths: list, all_images: list):
     try:
         client = MongoClient(MONGO_URI)
         db = client[MONGO_DB_NAME]
@@ -180,12 +179,11 @@ def _sync_update_mongodb_project(project_id: str, pdf_id: str, registry_url: str
         project_source = project_sources_coll.find_one({"project": ObjectId(project_id)})
         project_source_id = project_source["_id"] if project_source else None
 
-        # update project as before for JSON registry link
+        # touch project updated timestamp
         projects_coll.update_one(
             {"_id": ObjectId(project_id)},
             {
                 "$set": {
-                    "sectioned_diagram_registry": registry_url,
                     "updated_at": datetime.now().isoformat()
                 }
             }
@@ -347,14 +345,9 @@ def run_processing(job_id: str, pdf_path: str, dpi: int, min_area_pct: float):
             prog = 62 + int(35 * (idx + 1) / len(crop_paths))
             _update_job(jobs_coll, job_id, progress=prog)
 
-        sectioned_registry_path = os.path.join(job_dir, "sectioned_diagram_registry.json")
-        with open(sectioned_registry_path, "w") as f:
-            json.dump({"images": all_images, "total": len(all_images)}, f, indent=2)
-
-        # Update MongoDB project document (Sync call in threadpool)
+        # Update MongoDB project document/collections
         if job.get("project_id"):
-            registry_url = f"/local_file_db/project_{job.get('project_id')}/pdf_processing/pdf_{pdf_id}/sectioned_diagram_registry.json"
-            _sync_update_mongodb_project(job.get("project_id"), pdf_id, registry_url, page_paths, all_images)
+            _sync_update_mongodb_project(job.get("project_id"), pdf_id, page_paths, all_images)
 
         _update_job(jobs_coll, job_id, status="done", step="Complete — all steps finished", progress=100)
     except Exception as e:

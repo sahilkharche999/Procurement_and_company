@@ -4,7 +4,6 @@ project_service.py
 Business logic that sits between the route handlers and the database.
 """
 
-import json
 import os
 import shutil
 from datetime import datetime
@@ -231,87 +230,48 @@ async def delete_project(project_id: str) -> bool:
     return result.deleted_count == 1
 
 
-async def attach_diagram_metadata(project_id: str, metadata_path: str) -> dict | None:
+async def attach_diagram_metadata(project_id: str, metadata_path: str | None = None) -> dict | None:
+    """Mongo-only refresh for selected diagram metadata.
+
+    `metadata_path` is ignored and kept only for backward-compatible API payloads.
     """
-    Called after save-selected completes. This function:
-      1. Renames the tmp_XXXXXX folder  →  project_{mongo_id}/
-      2. Creates project_{mongo_id}/final/
-      3. Moves + renames selected images  →  {mongo_id}_{page}_{seq}.png
-      4. Writes project_{mongo_id}/selected_image_registry.json with updated paths
-      5. Stores selected_image_registry location in the MongoDB project document
-    """
-    if not os.path.exists(metadata_path):
-        print(f"[attach_metadata] ⚠️  metadata file not found: {metadata_path}")
+    if not ObjectId.is_valid(project_id):
         return None
 
-    with open(metadata_path) as f:
-        metadata = json.load(f)
+    obj_project_id = ObjectId(project_id)
+    diagrams_coll = get_diagrams_collection()
+    pages_coll = get_pages_collection()
 
-    # ── Step 1:  Find and rename the tmp_ folder ───────────────────────────
-    old_selected_dir = os.path.dirname(metadata_path)
+    diagrams = await diagrams_coll.find({"project": obj_project_id, "is_selected": True}).to_list(length=None)
 
-    # Walk up from old_selected_dir until its parent is LOCAL_FILE_DB
-    old_tmp_dir = old_selected_dir
-    while os.path.dirname(old_tmp_dir) != LOCAL_FILE_DB:
-        parent = os.path.dirname(old_tmp_dir)
-        if parent == old_tmp_dir:  # reached filesystem root — safety guard
-            break
-        old_tmp_dir = parent
+    page_ids = [d.get("page") for d in diagrams if d.get("page")]
+    page_map = {}
+    if page_ids:
+        pages = await pages_coll.find({"_id": {"$in": page_ids}}).to_list(length=None)
+        page_map = {p["_id"]: p.get("page_no", 0) for p in pages}
 
-    # Rename tmp_XXXXXX  →  project_{mongo_id}
-    project_folder = os.path.join(LOCAL_FILE_DB, f"project_{project_id}")
-    if old_tmp_dir != project_folder and os.path.exists(old_tmp_dir):
-        os.rename(old_tmp_dir, project_folder)
-        print(f"[attach_metadata] 📁 '{os.path.basename(old_tmp_dir)}' → 'project_{project_id}'")
-    else:
-        os.makedirs(project_folder, exist_ok=True)
-
-    # Recalculate old_selected_dir now that the folder has been renamed
-    rel_from_tmp = old_selected_dir[len(old_tmp_dir):].lstrip("/\\")
-    old_selected_dir = os.path.join(project_folder, rel_from_tmp)
-
-    # ── Step 2:  Create final/ and move + rename images ────────────────────
-    final_folder = os.path.join(project_folder, "final")
-    os.makedirs(final_folder, exist_ok=True)
-
-    updated_images = []
-    for img in metadata.get("images", []):
-        page_num = img.get("page_number", 0)
-        diagram_seq = img.get("diagram_seq", "a")
-
-        # Canonical filename: {mongo_id}_{page}_{seq}.png
-        new_filename = f"{project_id}_{page_num}_{diagram_seq}.png"
-        new_full_path = os.path.join(final_folder, new_filename)
-
-        # Locate the old file, remapping path under renamed folder if needed
-        old_path = img.get("saved_path", "")
-        if old_path:
-            old_path = old_path.replace(old_tmp_dir, project_folder)
-        if not old_path or not os.path.exists(old_path):
-            old_path = os.path.join(old_selected_dir, img.get("filename", ""))
-
-        if os.path.exists(old_path):
-            shutil.move(old_path, new_full_path)
-
-        rel_path = new_full_path.replace(LOCAL_FILE_DB, "").lstrip("/\\").replace("\\", "/")
-        new_url = f"/local_file_db/{rel_path}"
-
-        updated_images.append({
-            **img,
-            "filename": new_filename,
-            "saved_path": new_full_path,
-            "url": new_url,
+    images = []
+    for d in diagrams:
+        images.append({
+            "id": str(d["_id"]),
+            "filename": d.get("filename", ""),
+            "page_number": page_map.get(d.get("page"), 0),
+            "label": d.get("label", ""),
+            "diagram_seq": d.get("diagram_seq", ""),
+            "sub_index": d.get("sub_index", 0),
+            "url": d.get("diagram_image_url", ""),
+            "is_selected": True,
         })
 
-    # ── Step 3:  Write selected_image_registry.json into project root ──────
-    new_meta_path = os.path.join(project_folder, "selected_image_registry.json")
-    metadata["images"] = updated_images
-    metadata["project_id"] = project_id
-    with open(new_meta_path, "w") as f:
-        json.dump(metadata, f, indent=2)
+    images.sort(key=lambda x: (x.get("page_number", 0), x.get("sub_index", 0), x.get("filename", "")))
 
-    print(f"[attach_metadata] ✅ {len(updated_images)} image(s) → project_{project_id}/final/")
+    selected_diagram_metadata = {
+        "project_id": project_id,
+        "total": len(images),
+        "updated_at": datetime.utcnow().isoformat(),
+        "images": images,
+    }
 
     return await update_project(project_id, {
-        "selected_image_registry": f"/local_file_db/project_{project_id}/selected_image_registry.json"
+        "selected_diagram_metadata": selected_diagram_metadata,
     })
