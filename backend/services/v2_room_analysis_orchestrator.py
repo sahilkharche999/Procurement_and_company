@@ -6,7 +6,7 @@ from pymongo import MongoClient
 
 from config import MONGO_URI, MONGO_DB_NAME
 from services.project_service import LOCAL_FILE_DB
-from services.room_analysis.image_preprocessor import preprocess_floorplan_for_sam
+from services.vlm_room_analysis.image_preprocessor import preprocess_floorplan_for_sam
 from services.vlm_room_analysis.drawgrid import generate_grid_overlay
 from services.vlm_room_analysis.analyse import analyze_floor_plan_to_file
 from services.vlm_room_analysis.cell_to_pixel import convert_objects_cells_to_pixels
