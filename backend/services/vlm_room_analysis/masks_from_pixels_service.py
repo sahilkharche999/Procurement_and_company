@@ -123,14 +123,15 @@ def square_polygon_from_center(center_x, center_y, box_size=20):
 
     x1 = center_x - half
     y1 = center_y - half
-    x2 = center_x + half
-    y2 = center_y - half
-    x3 = center_x + half
-    y3 = center_y + half
-    x4 = center_x - half
-    y4 = center_y + half
+    # x2 = center_x + half
+    # y2 = center_y - half
+    # x3 = center_x + half
+    # y3 = center_y + half
+    # x4 = center_x - half
+    # y4 = center_y + half
 
-    return [x1, y1, x2, y2, x3, y3, x4, y4, x1, y1]
+    # return [x1, y1, x2, y2, x3, y3, x4, y4, x1, y1]
+    return [x1, y1]
 
 
 def clamp_polygon_to_bounds(polygon, image_width, image_height):

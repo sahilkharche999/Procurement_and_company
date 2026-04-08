@@ -6,7 +6,6 @@ All /projects/* REST endpoints, backed by MongoDB via the project service.
 
 import os
 import time
-import uuid
 from datetime import datetime
 
 import cv2
@@ -364,36 +363,89 @@ async def extract_rooms(project_id: str, body: dict):
 
     h, w = img.shape[:2]
 
-    out_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "rooms")
-    os.makedirs(out_dir, exist_ok=True)
+    diagrams_coll = get_diagrams_collection()
+    rooms_coll = get_rooms_collection()
+
+    project_oid = ObjectId(project_id) if ObjectId.is_valid(project_id) else project_id
+    diagram_id = body.get("diagram_id")
+
+    diagram = None
+    if diagram_id and len(diagram_id) == 24 and ObjectId.is_valid(diagram_id):
+        diagram = await diagrams_coll.find_one({"_id": ObjectId(diagram_id), "project": project_oid})
+
+    if not diagram and filename:
+        # Fallback to finding by project_id and original filename logic (less reliable due to renames)
+        diagram = await diagrams_coll.find_one({"project": project_oid, "filename": filename})
+
+    if not diagram:
+        raise HTTPException(status_code=404, detail="Diagram not found for room extraction")
+
+    try:
+        page_num_int = int(page_number)
+    except (TypeError, ValueError):
+        page_num_int = 1
+
+    # Prefer Mongo diagram sub_index for naming convention d00.
+    diagram_num = 0
+    sub_index = diagram.get("sub_index")
+    if isinstance(sub_index, int):
+        diagram_num = sub_index
+    else:
+        digits = "".join(ch for ch in str(diagram_seq) if ch.isdigit())
+        if digits:
+            diagram_num = int(digits)
+
+    project_rooms_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "rooms")
+    os.makedirs(project_rooms_dir, exist_ok=True)
 
     results = []
+    room_ids = []
 
     # Create an image with an alpha channel for transparent background editing
     img_bgra = cv2.cvtColor(img, cv2.COLOR_BGR2BGRA)
 
     for idx, room in enumerate(rooms):
-        room_id = room.get("id") or str(uuid.uuid4())
         name = room.get("name", f"room_{int(time.time())}_{idx}")
         polygon = room.get("polygon", [])
 
         if not polygon:
             continue
 
-        saved_path = room.get("saved_path")
-        if saved_path and os.path.exists(saved_path):
-            # Already extracted & saved, just persist its metadata
-            results.append({
-                "id": room_id,
-                "name": name,
-                "filename": room.get("filename"),
-                "url": room.get("url"),
-                "saved_path": saved_path,
-                "mask_array": polygon,
-                "source_image": image_url,
-                "created_at": room.get("created_at") or datetime.now().isoformat()
+        existing = None
+        incoming_room_id = str(room.get("id") or "").strip()
+        if ObjectId.is_valid(incoming_room_id):
+            existing = await rooms_coll.find_one({"_id": ObjectId(incoming_room_id), "project": project_oid})
+
+        if not existing:
+            # Check existence by name in current diagram to avoid duplicate IDs during re-save
+            existing = await rooms_coll.find_one({
+                "diagram": diagram["_id"],
+                "$or": [{"name": name}, {"room_name": name}],
             })
-            continue
+
+        room_oid = existing["_id"] if existing else ObjectId()
+        room_id_str = str(room_oid)
+        created_at = (existing or {}).get("created_at") or datetime.now().isoformat()
+
+        # Create/refresh room document first so folder can use Mongo room id.
+        pre_file_room_doc = {
+            "diagram": diagram["_id"],
+            "project": project_oid,
+            "name": name,
+            "notes": (existing or {}).get("notes", ""),
+            "created_by": (existing or {}).get("created_by", "system"),
+            "is_included_in_budget": bool((existing or {}).get("is_included_in_budget", False)),
+            "room_name": name,
+            "created_at": created_at,
+            "mask_array": polygon,
+            "room_image_url": (existing or {}).get("room_image_url", ""),
+            "image_width": int((existing or {}).get("image_width", 0) or 0),
+            "image_height": int((existing or {}).get("image_height", 0) or 0),
+        }
+        if existing:
+            await rooms_coll.update_one({"_id": room_oid}, {"$set": pre_file_room_doc})
+        else:
+            await rooms_coll.insert_one({"_id": room_oid, **pre_file_room_doc})
 
         pts = []
         for p in polygon:
@@ -415,85 +467,50 @@ async def extract_rooms(project_id: str, body: dict):
 
         cropped = img_bgra_masked[ry:ry + rbh, rx:rx + rbw]
 
-        safe_name = "".join(c if c.isalnum() else "_" for c in name).strip("_")
-        fname = f"page_{page_number}_seq_{diagram_seq}_{idx + 1}.png"
-        out_path = os.path.join(out_dir, fname)
+        safe_name = "".join(c if c.isalnum() else "_" for c in name).strip("_") or "room"
+        room_dir = os.path.join(project_rooms_dir, room_id_str)
+        os.makedirs(room_dir, exist_ok=True)
+
+        fname = f"p{page_num_int:03d}_d{diagram_num:02d}_{room_id_str}_{safe_name}.png"
+        out_path = os.path.join(room_dir, fname)
 
         cv2.imwrite(out_path, cropped)
 
-        url = f"/local_file_db/project_{project_id}/rooms/{fname}"
+        url = f"/local_file_db/project_{project_id}/rooms/{room_id_str}/{fname}"
+
+        image_height, image_width = cropped.shape[:2]
+        await rooms_coll.update_one(
+            {"_id": room_oid},
+            {
+                "$set": {
+                    "room_image_url": url,
+                    "image_width": int(image_width),
+                    "image_height": int(image_height),
+                    "mask_array": polygon,
+                    "room_name": name,
+                    "name": name,
+                }
+            },
+        )
+
+        room_ids.append(room_oid)
         results.append({
-            "id": room_id,
+            "id": room_id_str,
             "name": name,
             "filename": fname,
             "url": url,
             "saved_path": out_path,
             "mask_array": polygon,
             "source_image": image_url,
-            "created_at": datetime.now().isoformat()
+            "created_at": created_at
         })
 
-    if results:
-        # Persist rooms into standalone Rooms schema and link Diagram schema
-        diagrams_coll = get_diagrams_collection()
-        rooms_coll = get_rooms_collection()
-
-        diagram_id = body.get("diagram_id")
-
-        diagram = None
-        if diagram_id and len(diagram_id) == 24:
-            diagram = await diagrams_coll.find_one({"_id": ObjectId(diagram_id)})
-
-        if not diagram and filename:
-            # Fallback to finding by project_id and original filename logic (less reliable due to renames)
-            diagram = await diagrams_coll.find_one({"project": ObjectId(project_id), "filename": filename})
-
-        if diagram:
-            room_ids = []
-            for res in results:
-                image_width = 0
-                image_height = 0
-                saved_path = res.get("saved_path")
-                if saved_path and os.path.exists(saved_path):
-                    img = cv2.imread(saved_path)
-                    if img is not None:
-                        image_height, image_width = img.shape[:2]
-
-                # Store new Room document
-                new_room = {
-                    "_id": ObjectId() if len(res["id"]) != 24 else ObjectId(res["id"]),
-                    # Prefer existing valid Mongo ObjectIds, fallback generator
-                    "diagram": diagram["_id"],
-                    "project": ObjectId(project_id),
-                    "name": res["name"],
-                    "notes": "",
-                    "created_by": "system",
-                    "is_included_in_budget": False,
-                    "room_name": res["name"],
-                    "room_image_url": res["url"],
-                    "image_width": int(image_width),
-                    "image_height": int(image_height),
-                    "mask_array": res["mask_array"],
-                    "created_at": res.get("created_at") or datetime.now().isoformat()
-                }
-
-                # Check existance by name in current diagram to avoid duplicate IDs during re-save
-                exist = await rooms_coll.find_one({
-                    "diagram": diagram["_id"],
-                    "$or": [{"name": res["name"]}, {"room_name": res["name"]}],
-                })
-                if exist:
-                    await rooms_coll.update_one({"_id": exist["_id"]}, {"$set": new_room})
-                    room_ids.append(exist["_id"])
-                else:
-                    await rooms_coll.insert_one(new_room)
-                    room_ids.append(new_room["_id"])
-
-            # Link Diagram document to the Rooms
-            await diagrams_coll.update_one(
-                {"_id": diagram["_id"]},
-                {"$addToSet": {"rooms": {"$each": room_ids}}}
-            )
+    if room_ids:
+        # Link Diagram document to the Rooms
+        await diagrams_coll.update_one(
+            {"_id": diagram["_id"]},
+            {"$addToSet": {"rooms": {"$each": room_ids}}}
+        )
 
     return {"ok": True, "rooms": results}
 
