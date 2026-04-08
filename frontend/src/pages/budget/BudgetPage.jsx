@@ -12,14 +12,13 @@ import { Button } from "../../components/ui/button";
 import { api } from "../../redux/api/apiClient";
 
 export function BudgetPage({ projectId: propProjectId }) {
-  // Support both: passed as prop (ProjectEditorPage) OR read from URL param (/projects/:id)
+  //Support both: passed as prop (ProjectEditorPage) OR read from URL param (/projects/:id)
   const params = useParams();
   const projectId = propProjectId || params.id;
-
   const [generating, setGenerating] = useState(false);
-  const [genResult, setGenResult] = useState(null); // { message, created, updated }
+  const [genResult, setGenResult] = useState(null); // {message, created, updated}
   const [genError, setGenError] = useState(null);
-  // We'll use a refresh key to force BudgetTable to re-fetch after generation
+  //We'll use a refresh key to force BudgetTable to re-fetch after generation
   const [refreshKey, setRefreshKey] = useState(0);
 
   const handleCreateBudget = async () => {
