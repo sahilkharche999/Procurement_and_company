@@ -31,6 +31,26 @@ from services.v2_room_analysis_orchestrator import run_room_analysis_pipeline
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
 
+def _local_url_to_abs_path(local_url: str) -> str:
+    rel = local_url.replace("/local_file_db/", "").lstrip("/\\")
+    return os.path.join(LOCAL_FILE_DB, rel)
+
+
+def _abs_path_to_local_url(abs_path: str) -> str:
+    rel = abs_path.replace(LOCAL_FILE_DB, "").lstrip("/\\").replace("\\", "/")
+    return f"/local_file_db/{rel}"
+
+
+async def _resolve_sectioned_manifest_path(project_id: str) -> str:
+    doc = await project_service.get_project_by_id(project_id)
+    if doc:
+        manifest_url = doc.get("sectioned_diagram_registry")
+        if isinstance(manifest_url, str) and manifest_url.startswith("/local_file_db/"):
+            return _local_url_to_abs_path(manifest_url)
+
+    return os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "pdf_processing", "sectioned_diagram_registry.json")
+
+
 # ── Create ─────────────────────────────────────────────────────────────────────
 @router.post("", response_model=ProjectOut, status_code=201)
 async def create_project(body: ProjectCreate):
@@ -138,15 +158,14 @@ async def delete_project(project_id: str):
     return {"ok": True, "deleted_id": project_id}
 
 
-# ── Internal Pages (available in sectioned dir) ────────────────────────────────
+# ── Internal Pages (available in extracted_diagrams dir) ───────────────────────
 @router.get("/{project_id}/available-pages")
 async def get_available_pages(project_id: str):
     """
     Returns all detected diagrams for this project from its local_file_db manifest.
     Used in the 'Add Pages' tab of the Source manager.
     """
-    manifest_path = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "pdf_processing",
-                                 "sectioned_diagram_registry.json")
+    manifest_path = await _resolve_sectioned_manifest_path(project_id)
     if not os.path.exists(manifest_path):
         return {"images": [], "total": 0}
 
@@ -155,12 +174,17 @@ async def get_available_pages(project_id: str):
 
     images = []
     for img in data.get("images", []):
+        img_url = img.get("url")
+        if not img_url and img.get("path"):
+            img_url = _abs_path_to_local_url(img["path"])
+        if not img_url:
+            img_url = f"/local_file_db/project_{project_id}/pdf_processing/extracted_diagrams/{img['filename']}"
         images.append({
             "filename": img["filename"],
             "page_num": img["page_num"],
             "label": img["label"],
             "sub_index": img["sub_index"],
-            "url": f"/local_file_db/project_{project_id}/pdf_processing/sectioned/{img['filename']}",
+            "url": img_url,
         })
     return {"images": images, "total": len(images)}
 
@@ -223,8 +247,7 @@ async def update_project_saved_pages(project_id: str, body: dict):
     # Handle additions
     if add_list:
         # Load the processing manifest to get data for these files
-        manifest_path = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "pdf_processing",
-                                     "sectioned_diagram_registry.json")
+        manifest_path = await _resolve_sectioned_manifest_path(project_id)
         if os.path.exists(manifest_path):
             with open(manifest_path) as f:
                 manifest_data = json.load(f)
@@ -235,12 +258,17 @@ async def update_project_saved_pages(project_id: str, body: dict):
                 if fname in existing_fnames: continue
                 if fname in manifest_images:
                     m_img = manifest_images[fname]
+                    img_url = m_img.get("url")
+                    if not img_url and m_img.get("path"):
+                        img_url = _abs_path_to_local_url(m_img["path"])
+                    if not img_url:
+                        img_url = f"/local_file_db/project_{project_id}/pdf_processing/extracted_diagrams/{fname}"
                     images.append({
                         "filename": fname,
                         "page_number": m_img.get("page_num", 0),
                         "label": m_img.get("label", "full"),
                         "sub_index": m_img.get("sub_index", 0),
-                        "url": f"/local_file_db/project_{project_id}/pdf_processing/sectioned/{fname}"
+                        "url": img_url
                     })
 
         # Mark corresponding diagrams as selected in MongoDB.
@@ -330,7 +358,7 @@ async def extract_rooms(project_id: str, body: dict):
     """
     Extracts individual rooms from a floorplan based on drawn polygons.
     body: {
-        "image_url": "/local_file_db/project_.../sectioned/filename.png",
+        "image_url": "/local_file_db/project_.../extracted_diagrams/filename.png",
         "rooms": [
             { "name": "Room 1", "polygon": [{"x": 0.1, "y": 0.2}, ...] }
         ]
