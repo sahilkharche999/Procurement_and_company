@@ -1,11 +1,14 @@
 import os
 import shutil
+import urllib.request
 
 import cv2
+import numpy as np
 from bson import ObjectId
 from pymongo import MongoClient
 
 from config import MONGO_URI, MONGO_DB_NAME, LOCAL_FILE_DB
+from services.s3_storage_service import upload_file_to_s3
 from services.vlm_room_analysis.image_preprocessor import preprocess_floorplan_for_sam
 from services.vlm_room_analysis.drawgrid import generate_grid_overlay
 from services.vlm_room_analysis.analyse import analyze_floor_plan_to_file
@@ -45,12 +48,23 @@ def run_room_analysis_pipeline(room_id: str, project_id: str, room_image_url: st
         update_room_analysis_status(room_id, "preprocessing", 5, "Initializing analysis...")
 
         # 1. Setup paths
-        # Ensure we have the physical path to the input image
-        rel_img_path = room_image_url.replace("/local_file_db/", "").lstrip("/")
-        input_image_path = os.path.join(LOCAL_FILE_DB, rel_img_path)
+        # Read source room image from either local storage or absolute URL (S3/CDN).
+        if str(room_image_url).startswith("/local_file_db/"):
+            rel_img_path = room_image_url.replace("/local_file_db/", "").lstrip("/")
+            input_image_path = os.path.join(LOCAL_FILE_DB, rel_img_path)
+            if not os.path.exists(input_image_path):
+                raise FileNotFoundError(f"Source image not found at {input_image_path}")
+            img_bgr = cv2.imread(input_image_path)
+        elif str(room_image_url).startswith("http://") or str(room_image_url).startswith("https://"):
+            with urllib.request.urlopen(room_image_url, timeout=30) as resp:
+                img_bytes = resp.read()
+            arr = np.frombuffer(img_bytes, dtype=np.uint8)
+            img_bgr = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        else:
+            raise ValueError(f"Unsupported room_image_url format: {room_image_url}")
 
-        if not os.path.exists(input_image_path):
-            raise FileNotFoundError(f"Source image not found at {input_image_path}")
+        if img_bgr is None:
+            raise ValueError(f"Could not read room image: {room_image_url}")
 
         # Create output directory for this room's temporary analysis artifacts
         room_output_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "rooms", str(room_id), "temp_analysis")
@@ -63,13 +77,11 @@ def run_room_analysis_pipeline(room_id: str, project_id: str, room_image_url: st
         objects_pixels_json_path = os.path.join(room_output_dir, "vlm_objects_pixels.json")
         masks_polygons_json_path = os.path.join(room_output_dir, "masks_polygons.json")
 
-        base_url = f"/local_file_db/project_{project_id}/rooms/{room_id}/temp_analysis"
+        # Persistent S3 path prefix for final artifacts (temp files remain local only).
+        s3_prefix = f"project_{project_id}/rooms/{room_id}/analysis"
 
         # 2. Preprocess Image
         update_room_analysis_status(room_id, "preprocessing", 10, "Preprocessing image for SAM...")
-        img_bgr = cv2.imread(input_image_path)
-        if img_bgr is None:
-            raise ValueError(f"Could not read image using OpenCV: {input_image_path}")
 
         preprocessed_img_path = os.path.join(room_output_dir, "preprocessed.png")
 
@@ -128,33 +140,55 @@ def run_room_analysis_pipeline(room_id: str, project_id: str, room_image_url: st
             box_size=20,
         )
 
-        # 7. Finalize Payload and Update MongoDB
+        # 7. Persist selected analysis outputs to S3 (keep path hierarchy consistent).
+        masks_polygons_url = upload_file_to_s3(
+            masks_polygons_json_path,
+            f"{s3_prefix}/masks_polygons.json",
+            content_type="application/json",
+        )
+        vlm_grid_overlay_url = upload_file_to_s3(
+            grid_overlay_img_path,
+            f"{s3_prefix}/vlm_grid_overlay.png",
+            content_type="image/png",
+        )
+        vlm_objects_cells_url = upload_file_to_s3(
+            objects_cells_json_path,
+            f"{s3_prefix}/vlm_objects_cells.json",
+            content_type="application/json",
+        )
+        vlm_objects_pixels_url = upload_file_to_s3(
+            objects_pixels_json_path,
+            f"{s3_prefix}/vlm_objects_pixels.json",
+            content_type="application/json",
+        )
+
+        # 8. Finalize Payload and Update MongoDB
         update_room_analysis_status(
             room_id=room_id,
             status="completed",
             progress=100,
             message="Room analysis successfully completed.",
             extra_fields={
-                "masks_polygons_url": f"{base_url}/masks_polygons.json",
-                "vlm_grid_overlay_url": f"{base_url}/vlm_grid_overlay.png",
-                "vlm_objects_cells_url": f"{base_url}/vlm_objects_cells.json",
-                "vlm_objects_pixels_url": f"{base_url}/vlm_objects_pixels.json",
+                "masks_polygons_url": masks_polygons_url,
+                "vlm_grid_overlay_url": vlm_grid_overlay_url,
+                "vlm_objects_cells_url": vlm_objects_cells_url,
+                "vlm_objects_pixels_url": vlm_objects_pixels_url,
                 "analysis_pipeline": "vlm_v2",
                 "grid_rows": grid_meta.get("rows"),
                 "grid_cols": grid_meta.get("cols"),
             }
         )
 
-        # 8. Cleanup temporary analysis artifacts after successful persistence to MongoDB
-        # try:
-        #     if os.path.isdir(room_output_dir):
-        #         shutil.rmtree(room_output_dir)
-        #         print(f"[Orchestrator] Cleaned temporary analysis folder for room {room_id}: {room_output_dir}")
-        # except Exception as cleanup_err:
-        #     # Non-blocking cleanup: do not mark job as failed if temp cleanup fails
-        #     print(f"[Orchestrator] Warning: failed to clean temp analysis folder for room {room_id}: {cleanup_err}")
+        # 9. Cleanup local temporary artifacts.
+        try:
+            if os.path.isdir(room_output_dir):
+                shutil.rmtree(room_output_dir)
+                print(f"[Orchestrator] Cleaned temporary analysis folder for room {room_id}: {room_output_dir}")
+        except Exception as cleanup_err:
+            # Non-blocking cleanup: do not mark job as failed if temp cleanup fails
+            print(f"[Orchestrator] Warning: failed to clean temp analysis folder for room {room_id}: {cleanup_err}")
 
-        # print(f"[Orchestrator] Successfully completed analysis for room {room_id}")
+        print(f"[Orchestrator] Successfully completed analysis for room {room_id}")
 
     except Exception as e:
         import traceback
