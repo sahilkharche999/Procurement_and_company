@@ -6,6 +6,7 @@ All /projects/* REST endpoints, backed by MongoDB via the project service.
 
 import os
 import time
+import urllib.request
 from datetime import datetime
 
 import cv2
@@ -348,18 +349,29 @@ async def extract_rooms(project_id: str, body: dict):
     diagram_seq = body.get("diagram_seq", "a")
     rooms = body.get("rooms", [])
 
-    if not image_url.startswith("/local_file_db/"):
+    if image_url.startswith("/local_file_db/"):
+        rel_path = image_url[len("/local_file_db/"):]
+        abs_path = os.path.join(LOCAL_FILE_DB, rel_path)
+
+        if not os.path.exists(abs_path):
+            raise HTTPException(status_code=404, detail="Image file not found")
+
+        img = cv2.imread(abs_path)
+        if img is None:
+            raise HTTPException(status_code=500, detail="Could not read image file")
+    elif image_url.startswith("http://") or image_url.startswith("https://"):
+        try:
+            with urllib.request.urlopen(image_url, timeout=30) as resp:
+                img_bytes = resp.read()
+            arr = np.frombuffer(img_bytes, dtype=np.uint8)
+            img = cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Could not download image URL: {e}")
+
+        if img is None:
+            raise HTTPException(status_code=500, detail="Could not decode image from URL")
+    else:
         raise HTTPException(status_code=400, detail="Invalid image URL")
-
-    rel_path = image_url[len("/local_file_db/"):]
-    abs_path = os.path.join(LOCAL_FILE_DB, rel_path)
-
-    if not os.path.exists(abs_path):
-        raise HTTPException(status_code=404, detail="Image file not found")
-
-    img = cv2.imread(abs_path)
-    if img is None:
-        raise HTTPException(status_code=500, detail="Could not read image file")
 
     h, w = img.shape[:2]
 

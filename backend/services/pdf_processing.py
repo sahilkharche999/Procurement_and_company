@@ -7,6 +7,7 @@ from bson import ObjectId
 from pymongo import MongoClient
 
 from config import MONGO_URI, MONGO_DB_NAME, BASE_DIR, LOCAL_FILE_DB
+from services.s3_storage_service import upload_file_to_s3
 
 os.makedirs(LOCAL_FILE_DB, exist_ok=True)
 
@@ -204,8 +205,9 @@ def _sync_update_mongodb_project(project_id: str, pdf_id: str, page_paths: list,
         page_ids = []
         for idx, page_path in enumerate(page_paths):
             page_num = idx + 1
-            # Build URL path for the database instead of absolute file path
-            local_path = f"/local_file_db/project_{project_id}/pdf_processing/pdf_{pdf_id}/temp/page_{page_num}_300dpi.png"
+            # Upload page image to S3 and keep path pattern as S3 object key.
+            page_s3_key = f"project_{project_id}/pdf_processing/pdf_{pdf_id}/temp/page_{page_num}_300dpi.png"
+            page_url = upload_file_to_s3(page_path, page_s3_key)
 
             # create page record
             new_page = {
@@ -214,7 +216,7 @@ def _sync_update_mongodb_project(project_id: str, pdf_id: str, page_paths: list,
                 "pdf_id": str(pdf_id),
                 "page_no": page_num,
                 "is_selected": False,
-                "page_image_url": local_path,
+                "page_image_url": page_url,
                 "diagrams": []  # populated next
             }
             res_page = pages_coll.insert_one(new_page)
@@ -225,7 +227,9 @@ def _sync_update_mongodb_project(project_id: str, pdf_id: str, page_paths: list,
             for img in all_images:
                 if img["page_num"] == page_num:
                     diag_filename = img["filename"]
-                    diag_url = f"/local_file_db/project_{project_id}/pdf_processing/pdf_{pdf_id}/extracted_diagrams/{diag_filename}"
+                    diag_local_path = img.get("path", "")
+                    diag_s3_key = f"project_{project_id}/pdf_processing/pdf_{pdf_id}/extracted_diagrams/{diag_filename}"
+                    diag_url = upload_file_to_s3(diag_local_path, diag_s3_key)
                     new_diagram = {
                         "project": ObjectId(project_id),
                         "page": page_id,
