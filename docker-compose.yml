@@ -7,19 +7,19 @@ services:
       args:
         VITE_SERVER_URL: ${VITE_SERVER_URL}
     image: pco-frontend-image:latest
-    container_name: pco-frontend
-    ports:
-      - "80:80"
+    container_name: editor-frontend
+    expose:
+      - "80"
     depends_on:
       - backend
     networks:
-      - frontend
+      - shared-network
 
   backend:
     image: pco-backend-image:latest
-    container_name: pco-backend
-    ports:
-      - "8000:8000"
+    container_name: editor-backend
+    expose:
+      - "8000"
     environment:
       MONGO_URI: ${MONGO_URI}
       MONGO_DB_NAME: ${MONGO_DB_NAME}
@@ -32,10 +32,10 @@ services:
 
       
     networks:
-      - frontend
+      - shared-network
     volumes:
       - /data/backend/local_file_db:/app/local_file_db
 
 networks:
-  frontend:
-    driver: bridge
+  shared-network:
+    external: true
