@@ -2,6 +2,10 @@ version: "3.9"
 
 services:
   frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_SERVER_URL: ${VITE_SERVER_URL}
     image: pco-frontend-image:latest
     container_name: pco-frontend
     ports:
@@ -25,6 +29,7 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       AWS_REGION: ${AWS_REGION}
       AWS_S3_BUCKET_NAME: ${AWS_S3_BUCKET_NAME}
+
       
     networks:
       - frontend
