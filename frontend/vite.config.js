@@ -17,6 +17,7 @@ import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
 export default defineConfig({
+  base: '/editor/',
   plugins: [
     react(),
     tailwindcss(), // 👈 REQUIRED FOR TAILWIND v4

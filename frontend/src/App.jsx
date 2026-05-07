@@ -19,7 +19,7 @@ import EditorLayout from "./components/editor/EditorLayout";
 
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename="/editor" >
       <Routes>
         {/* All main pages share the AppSidebar via MainLayout */}
         <Route path="/" element={<MainLayout />}>
