@@ -1,0 +1,222 @@
+Transcript:
+
+Sarah:  So the vendor attention, telephone number and email would be the local rep contact information. Not the primary contact at the factory, because during vendor setup, we're asking for two contacts, one at the factory, one locally. So this would be the local one.
+
+Me: Yeah sure so currently in the system what is it like in our UI you have a feature to add multiple content you can add any number of contacts to a vendor local representative or architecture from like any number of context and you can name them so system will suggest you what to keep here once you have selected that it will be default for all the purchase order you are rolling out or you can even add it for each purchase order.
+
+Sarah: So I just expect the system to. Attach because these vendors are filling out the form during the vendor setup process. So I just expect the system when I choose neilin, the stone resource. I expect a system to just plug in whatever the name is that was put into. The rep field. And if there's nothing, it would divert to the primary contact at the factory.
+
+Me: We can do that okay sure we'll tailor that then we have built information we are taking it from two sources one is from project setup or one is like one is from like when you will be creating a client there also we have an feel to build for build to address you so we are pulling that from both the sources like we can pull from any one of the sources currently we are pulling from the project setup.
+
+Sarah: Okay. That's perfect. Yeah. So on the project setup, it will have build two. It's usually not my client's name, but I'll enter the ews residential property owner, you know, that would pull from the setup and care procurement and company. I think I might have said this to you before, but I would like procurement and company to be written out as it is at the top left hand corner of the screen. Making. Standard capitalization. Not all caps. Procurement and company LLC.But I can. For the sake of setting up within the system. I can modify this myself. If there's an area where I'm setting up my agent's information.
+
+Me: Sure it is already implemented like I think you have told it in the previous meeting so I have gave it to my fellow developer and he has implemented that.  Okay then we have PO issues there's all like PO issue date will like directly for the date of the date when you are creating the PO. Okay then we have required delivery. So here it will be manual because. We it totally depends on you. When the delivery is required for the purchase order of the item. Right.
+
+Sarah: Is it possible that. Within the system, I set a required delivery date for the project. So say I know the project is installing in june, so I want to get this by May to the warehouse. But. So I set a required delivery date within the system. Then each vendor, when they're doing their quotes, they're entering lead times. So they might say that their product takes six to eight weeks. Would the system be able to. Plug in May 1 2026?
+
+Sarah: As a default? But if it is outside, if. If the six to eight weeks puts it outside of my required delivery date, that it. It flags it somehow for me so that I talk to the vendor to see if they can meet my delivery needs.
+
+Me: Yeah sure we can do that that that's easy we can we will be adding that into the PO settings we have created a tab PO setting where the default things which will be in the PO can be configured from there like for example this information the header the the headers and other things which I think that constant in this PO I'll be coming on that okay.
+
+Sarah: Okay, so. So. That information that I just mentioned would be pulled from the quote. On. On the lead time for the quote. That makes sense. So May 1st would be pulled from the project setup. But the system would refer to the estimated lead time on the vendor quote to let me know if it's outside of my required delivery date.
+
+Me: Sure so yeah we'll yeah we are like currently the main thing is like we have created the UI but the UI just shows this we are still figuring out a control panel how to design a control panel for example you will just select a vendor you have selected the vendor now vendor regarding things will be displayed to you in this panel you just click one tick.  For example here if we say about like you have given a current example like you went like vendor have quoted for the item but it is going outside of the required delivery date so it should red flag it. Right yeah so yeah so all these things yeah we have to make a proper editor for this and I think that is taking time I think it will want to take this entire week otherwise the back end related work like collecting data is done and all the modules from where it is pulling the data is also done so okay payment terms okay so payment terms for example payment terms we are all we have payment terms in project setup as well.
+
+Sarah: Okay. Yes. Thank you. Okay. It's different from vendor to vendor. But if I can change it, and it's pretty much always going to be 50 deposit balance before delivery or 100 payment. I should be able to just. Have a set of defaults that I. It will automatically default to 50 deposit balance before shipping. But right there, if we could have a drop down list and I could change it right here on. On the purchase order screen, that would be great.
+
+Me: Okay sure you will be able to do that yeah sure then project name will definitely come from project setup final destination will like ship to address. Right.
+
+Sarah: Yes, that is correct. Because that's what the taxation code is based on, is where the product will be installed, not where it's shipping.
+
+Me: Right right okay and we have already the tax suggestion feature we will also include that in editor if it needed then we have specifier CFA approvals we already talked about it like you will be adding some team members in the project. And you can mark any one of them as an specifier so his detail will come over here okay.
+
+Sarah: Yep. Correct. Same thing with the ship to address. That's going to be marked as a warehouse or shipper or receiver. And that would come to the ship, too. Correct.
+
+Me: Sure and this node will be constant. I think yeah but I'm also giving this to be configurable in the. Projects PO settings like okay. Yeah sure and we have shipped to it's the same the ship two things and we have already discussed about the side marks like for each item we will be having a side Mark so that's all done and if okay. Now.
+
+Sarah: In some cases, that will need to change that ship, too. That's not going to. It'll be the one that the system differs to, but in some cases, I'm going to need to change the ship to for materials. If I'm shipping a material to a vendor versus shipping a finished product to a warehouse. So I'll have to be able to change that also in this screen. Yes. I'm going to be bidding out the ship to. To three different warehouses. Then we assign the warehouse, and then that warehouse that we assign will become a default value. Well, I'll tell the system to do that in the project setup. This will be the default value. But if I'm buying as an example, a sofa. And. And it has. A customer selected upholstery that I have to buy from a different source and ship to the sofa manufacturer. So in some cases, I'm going to have to change that. To the manufacturer receiving location. It's the same way that the vendor setup would be pulled from. I'd be using still the same values. Sometimes the fabric shipping destination is different than the vendors. I can change that manually, but I basically pulling from the vendor. CRM.
+
+Me: Okay so like what we can do is that. Is that here we can like as we are registering vendors would you like to also register the warehouses in the system that will make the small structure right I got it?
+
+Sarah: Yes. The same. The same way that we assign icon architecture as a specifier, I'd like to be able to assign warehouse.
+
+Me: Okay. Yeah. Perfect.
+
+Sarah: And so the. The categories would be specifier, warehouse, installer and vendor.
+
+Me: Okay specify vendor okay sure.
+
+Sarah: And other. Just other. Just so if it's like something out of the ordinary and they're not in that category.
+
+Me: Okay. Yeah okay then I think this compliance blog is also static.
+
+Sarah: It is static. As long as I can change it in the settings because I'd like to. Make it. I actually think that everything is covered. I believe everything is covered in those requirements. I'll review them. But as long as I can change it in settings, yes, that's static.
+
+Me: Okay sure you will be able to change this in the settings and now here comes this like here is the block like what. I in like it will not gonna be static because here we are talking about these samples physical samples and where it is gonna be deliver like set one is gonna deliver here and set will set to gonna be deliver here. Right so.
+
+Sarah: Right. So set to partial is partially, Can I say partially static? I don't know if that's a term. It's static most of the time, but I may need to change who the second set of samples go to the side mark polls from the side marks below and we can address that when we get there. But the second one always goes to me at the address shown above, which is the bill to care of address. If you notice, it's the same address as the care care of address at the top of the screen.
+
+And the same thing with the one above. So the physical samples. That's going to the specifier right above on the. So this should. So this the sets of samples always go to the specifier. It's the second set. Like. And. Some cases my customer will want to receive the sample and I might just forego getting a sample of my own. So I might. That's the only case that I would change that second set. But the first set always goes to the designer, which is up if you go. Go to the top of the screen. The designer is the specifier slash CFA slash approvals. It always does that.  And see it even to the attention valon clarke. That's included below as well. So. But the rest of the information is static. So the. Everything parcel tracking and. And below is static except for. Where it says icon architecture under custom production orders. Icon architecture would automatically default value to the name of the company, the company name of the specifier. And in this case, it would be icon architecture.
+
+Me: Okay so what we can change it as per the specifier.
+
+Sarah: You know what? Just for reference. Set one. Set one is going to 141 trend monk street, but I'm noticing on this purchase order that should say icon architecture in front of 141 trend on street. And so. That, that icon architecture value is repeated below where you'll see the icon architecture. That'll just change whatever the name is at the specifier will change there.
+
+Me: Okay so what it will. Tailor this section short and we have documentation I think it's. Also yeah but you will be able to edit all the static sections from the.
+
+Sarah: That's static.
+
+Me: Projects from the PO settings purchase order settings.
+
+Sarah: Before. Before you move forward, the one thing that is not static here. Is the P O number.
+
+Me: Okay now here we comes on this page. Like currently for example like it like this purchase order is for this all these items. Right.
+
+Sarah: Correct.
+
+Me: So like for example if you are making a purchase order you have selected a budget item just for an example you have selected an item from a budget item and now you are moving forward to make its purchase order in the product so purchase order so you know we have a feature of like items and sub items we have the parent item we can attach sub items to it like in parent item we have sopa and in sub item we can have a leather for it or some other stuff which requires for the sofa. So currently what system does is that if you select a parent item to make to roll out a purchase order. Then what happens is that it it gets all this information from its sub items. Like if it is sofa and there is a sub item to the sofa there is a cloth or maybe a leather so it will appear here and it will go into that leathers specification document and will pull all these details from there.
+
+(IMPORTANT NOTE : She sent me )
+
+Sarah: May I send you a purchase order to reference for this specific part of the conversation?
+
+Me: Yeah sure. thanks for that.
+
+Sarah: Okay. You'll notice. You'll notice. Well, I'll just. I'll wait till you can open it. On page. Two. I will point something out. Okay, so page two, you'll notice that on this one specifically you're only seeing the fabric on the left side on line item two. Because there was no image of the banquet to include. But ideally line item one and line item five show the banquet. And the upholstery. So this is saying. Custom verifying fields because it doesn't have a model number, but then it says COL, which is leather versus COM, which is material customers own leather. I just say carol leather defy gravity. And see how the top one, it says model number C O L C o l is the material that they're. They're waiting to receive from me. In order to manufacture that banquet. Additionally, the utility I'm calling out two markets. By others so they'll know that I am also ordering two markets to send to them to install on that piece.
+
+Me: Got it.
+
+Sarah: And so these are just, these are throw pillows. So that's why I'm just showing the fabric. I didn't have. They didn't include an image of the throw pillow on the spec.
+
+Me: Sure got it and like. I think all this thing will be available in like when we will be making a budget item this thing should be available in budget items you'll be adding that the budget items right okay.
+
+Sarah: T. They'll be attached. They'll be attached. Yes.
+
+Me: As a sub item to the main item. Yeah if you do that system handles this situation. Or would you like some feature for example you have selected an item now a budget item for example a sofa and now the sub items of it you haven't attached to that so far but you can you can get like you we can display you all the budget item in that page as well you can select them to add a as a sub item directly to that so that if they are not added into the sub items or the main item you can still able to club them into a purchase order.
+
+Sarah: Okay. So as an example, line item one. I have the COL as a sub item to this, and so it automatically adds the name of the vendor, the pattern and the color. So that that happened there. Then as in as the alternative example, I did not attach the. The two items together. I have them individually. The system. Should be able to. I think. Identify what the fabric is by the spec number, because if you'll notice, well, actually, I've never sent you a fabric purchase order. But on the fabric purchase orders, they're usually called. 302. F1. Fabric one, you know, so it'll still have that initial sequence. Not always. But they usually label the fabric starting with the spec number for which it's applied to. Does that make sense?
+
+Me: Yeah that makes sense if it has such kind of standardization like in front there is a spec number and so it will be very easy to identify like system can itself suggest you.
+
+Sarah: And in other cases, it's not. But it's not as easy. But the specification itself for that lob302. Will outline what the fabric is. Even though the fabric is then generating its own spec from the designer. But that lob302 spec will say, kara leather defy gravity on it somewhere. So it's just saying basically, this is what you're buying. Please reference lab 302 F1. For the fabric. You know. Does that make sense?
+
+Me: Yes
+
+Sarah: So. But, but, yeah, as long as that is a. Drop down list where I could just scroll down and pick the correct spec number, I'm okay with that as well. It would just draw the the vendor name. The pattern name and color. And then the. COM and COL. I remember we have the, the different units. This is also something I have to be able to change. I have to be able to switch from COM to C O L depending on if it's leather or fabric. 
+All these fields, I should be able to just change any of these fields. Model number. I, you know, I might want to instead call it. You know, instead change the name of that field. I should just be able to modify it manually. And that applies to all fields.
+
+Me: Like would you like to also monitor modify this side of the field like it's obviously be able to edit these fields as well would you like this field to be editable as well?
+
+Sarah: Yeah. I should be able to manually edit anything in, in this what in this box. So box meaning from the top left corner to the bottom right corner of number five. Anything that is in there, the description, the vendor reference, I should be able to edit anything manually. Like if I click it to edit it, I should be able to change it because just some things. You never know. So this, the last PO we were looking at, they're Neil Allen and the stone resource. It's two different companies combined into one. So I might want the vendor reference, even though I'm submitting one purchase order. It's for both companies. The vendor reference might say, neilin here and the one above it might say the stone resource. That's just something I'd like to be able to manually edit if as needed.
+
+Me: Okay so for that I think we have to make it like a word like system.
+
+Sarah: If it tell me how it, how that change, like, tell me in words I'll understand how that changes, how this is set up.
+
+Me: Okay so currently what like currently in CRM what happens that these fields are static like this will not be changeable currently it happens like this will not be changeable this will be you will be able to change the other side of the fields because what happens is that we store all these things into the database and to store information into the database we need a key for example to. In store club lodge we have we need a key that key will be this area but yeah the things you are telling like you will be able to edit this you can do that as well but in this way we have to build it like a word or like any other text editor kind of something we yeah we have discussed on that like will internally discuss and we'll figure it out like how we'll be doing it.
+
+Sarah: Okay.
+
+Me: Then that.
+
+Sarah: So when we're doing extraction and I'm, and I'm, you know, showing us software, if it hasn't identified what I need pulled and. And I'm, you know, telling the software this or that. The information that it's pulling. They might, the designer might call it model number, and then another designer might call it. KU. So when I'm. Verifying the information that it pulls, this is at some point I have to verify it that it's correct. I should be able to change that model number to say skew. And if this is a lighting item, it's definitely not going to say sofa detail. Right. It's going to say lamping. Or electrical type. So when I'm selecting the data, the system would use whatever tag the specifier used on the left side. I can, if you click back to the other one. So right, just remember this detail right here from the screen line item 5. You see bench detail, seat and back cushion or channels. But it says bench detail. Now click the other, the other purchase order.
+
+Me: Is the purchase order.
+
+Sarah: And scroll down to. One. Now this is saying pattern color because this is a fabric order. And here, here is that example I mentioned before as well. The 306 F1 under id. But pattern color is here instead of. What we see on the other because it's a different commodity. It has different references.
+
+Me: Like we have already built that model which extracts and allow you to edit the field I think you are right we can. We can like we can integrate that here as well so that it automatically. Get the correct correct name but if it's not getting the correct name for this field the that's not the challenge when we we can easily get here the correct field but the challenge is just to edit this like if the system.
+
+Sarah: Okay. Instead of editing it could, could, could you list. Could I have, like, a drop down list of all the different things that that might say, like, so if it doesn't say. You know, if I'm not calling out a pattern color, but could I choose from a drop down list and change that to dimensions?
+
+Me: Yeah that.
+
+Sarah: Or what, whatever. Okay.
+
+Me: Okay what I'm doing is Sarah is that for short that drop down solution that's easy to make.
+
+Sarah: That's fine. With.
+
+Me: That will be there surely but I will try to make it like you can directly click and edit it just like we added in word or PDF documents that will be I think more handy I will try to do that.
+
+Sarah: If you, if it becomes a challenge and it, and it holds up the development. I'm happy to. Have that drop down list. And if there's not a field listed and I need a different field, I don't mind going to the settings and adding that field there.
+
+Me: Okay sure so what we can do is that for now we keep it like as a drop down and we'll update it like once you started using it we can like do this improvements.
+
+Sarah: So because, like, the, the administration settings. I'll be able to add different change things, like you said, I could change a certain field that's all done in the admin settings. I don't mind. If a field is not currently in the drop down going over the settings and adding it. That's fine.
+
+Me: Yeah. Sure that will be easy for now we will be doing that okay so Sarah I think I have discussed like yeah this module is done I will be preparing ui for it and we are deploying it it's almost done we'll provide you the URL once it is deployed I'll provide you URL after like making the UI of this purchase order so that you have one complete flow to test and we also provide the list which I prepared from our meetings like list of requirements you can cross check them and if it's not the way you want we can modify them.
+
+Sarah: There's, there's something else. If you scroll down.  I can see the line item. There you go. So on this screen. I need two yards. That. That number. Two comes from the vendor. This fabric is associated with. So club 306 F1 is associated with club 306. So when the vendor fills out their quote and club 306 is an ottoman, see, we see fabric at ottoman. So the other vendor who's filling out the 306 for the ottoman is, is telling me how many yards of fabric I need for this item because they have, you know, there has to be. A box for that, for upholstered furniture. They have to be able to tell me how many yards I need to order. So this number gets pulled from that quote.
+
+Me: Okay sure we can just map this number from the bid. What they have quoted for the item.
+
+Sarah: But it's, but it's two different vendors. So this is momentum and the other vendor is furniture Concepts in this example.
+
+Me: So.
+
+Sarah: So. I think I have to con, I think the easiest way is to attach the two items so that it knows where to pull it from. Unless you can associate. You're not always going to be able to associate that club number clb 306 because some designers really like to make my life difficult. And they'll just label their fabrics F1, F2, F3 without the spec name. So I think the easiest way would be to attach it. And so. Just to continue a little more detail on this, if I were to have a sofa. The designers will also have two different fabrics on the sofa. So I would have two sub items in the budget. Inside those sub items. Would be an application setting where I have to tell the system where that's being applied. Is it, is it the seat or is it the back? And that gets generated into the purchase order we just looked at. So if you go back to the, the furniture Concepts purchase order, if it's hard to find, we don't have to look at it. But the one with the sofa and the image. Oh, yeah. Perfect. Okay, so. The shoot, I lost my train of thought. I'm so sorry. Let me see. Do any of these have two Fabrics? Can you scroll down? Okay, there we go. Stop. Similar to how the bench detail and the sofa detail are listed separately. I might have two COLs. If I have two COLs, my drop down options, I will include COL1 and COL2. I, I would assign two different fabrics here. And it would say at bat at seatback. At. You know, if it's not the seat back, then it's the seat. So the specification for this item for club 302 will outline. The name of the fabric. That goes on the sofa and wear on the sofa it goes. So that information, they'll put that in the spec for club 302, but they won't put it in the fabric spec. It's a tough one. So a lot of the fabric specifications, the purchase orders for the fabric where I'm saying this fabric goes on this item in this place on that item. This fabric is for the. Seat on the chair. When I'm placing the order with the fabric vendor. The fabric spec is only going to tell me about the fabric. It's not going to tell me about the application. The application of the fabric is found. On the sofa spec. So I.
+
+Me: Yeah I have to model it like how we'll be doing this but I think yeah.
+
+Sarah: Think. That's why I think, that's why I think I have to attach them. Or. Or my fabric orders. Could have a drop down for location. So for fabric orders, are you able to make it so that I can add so it says C O M. If I want to add a second COM. Will the purchase order will I be able to add a line here?
+
+Me: Sure you will be able to add a line for the fabric items.
+
+Sarah: Okay.
+
+Me: We'll tell you that.
+
+Sarah: So as long as there is a box to the right of the COM. So we have birch, dash, rosemary. If there is a blank box to the right. Where I can. Choose the application if it doesn't find it, or I can type the application, that's fine with me as well.
+
+Me: Yeah sure we can do that.
+
+Sarah: I'm sorry. It's, I have a trouble articulating the connection.
+
+Me: But surely we will be we can achieve it like we'll be modeling it as our understanding then we'll talk talk again about it once it is implemented.
+
+Sarah: That's great. And anything else on this purchase order.
+
+Me: No I think the purchase order is complete we we have I think entirely discuss about the purchase order do we have some thing more about.
+
+Sarah: Yep. Can't wait. Back up. The terms and conditions. Go to a little further just on this page there. No. Pe. Up where the red is. There you go again. That's the dynamic field where it pulls the spec. The this is again refers to the sample. So the two set of finished sample going to that. And there's also a reference within this.
+
+Me: Okay.
+
+Sarah: Of a state. Let me just look it up there. Like, like. A geographic that needs to change. Hold on one second. Let me just. Search a document for it. Hold on and tell you exactly where it is. But it says, you know, the governing taxes, the governing authority for litigation. Within here. That's another dynamic field. One second, please. I'm sorry. Okay, so number 17. On the tag on the terms and conditions.
+
+Me: Terms and conditions number 17.
+
+Sarah: It says the purchase order shall be governed. Blah, blah, blah, by the state of Massachusetts. And then. Goes on to say the city of boston. So the state of Massachusetts city of boston. And the state of the first state of Massachusetts, that will be in the project setup. So governing law will be. I'm sorry, I forgot about this one. So governing law in project setup, I would type. At this point, I would type. The governing tax, the law, then that would change. To whatever I set it up as.
+
+Me: Okay.
+
+Sarah: And then I.
+
+Me: Dynamic. And.
+
+Sarah: This customer was extremely difficult, this 104. Main Street customer. So these terms and conditions have their name in it. And the regular ones do not. So I'm going to just send you a new terms and conditions document to refer to. And I'll highlight the dynamic fields. I'm going to do it right now because I know I keep saying I'm going to do things for you and I'm not doing it just because I'm extremely busy.
+
+Me: Yeah.
+
+Sarah: But, and I know you're, I'm trying to make your life easier, but I can't even make my own life easier.
+
+Me: You are already making it easy.
+
+Sarah: So it's like. But I am going to go on right now, get a purchase order terms and condition, and I'll highlight the dynamic fields on it.
+
+Me: Yeah sure that will be really helpful.
+
+Sarah: Okay.
+
+Me: And we'll be incorporating according to that and are there more fields and what this section like it is the almost duplicate section. What we have on top. At the bottom like in each purchase order we have this like it's almost the same which we have on top.
+
+Sarah: That, that is the same. So the, it's the same information. It pulls it if you scroll up a little bit. So I just see that. So those six boxes will pull directly from the six boxes on the first page. It's the same exact information. That performer invoice to be inclusive of tax that is. On the purchase order. If you scroll up to. The last page after, I don't know what purchase order this is. What is this? Want to scroll up before terms and conditions? Right at the bottom of one more page. Keep going up right there. Stop. See, that is the same box there. So it says the same exact information there as well. With the same total.
+
+Me: Okay. Got it just first for signature right.
+
+Sarah: And then. It's my, it's, it's, it automatically just goes there and then below. So if you scroll down to the bottom once, once this purchase order is issued. So I have to be able to click those boxes if I need a vendor signature, if I need the client signature, I usually leave it off. But I always request the vendor signature. They don't always return it to me. And I don't need them to because just processing the order means that they're agreeing with my terms and conditions, but I still check that box. The day that this purchase order is submitted. I might start a purchase order and save it and not send it. The day it's submitted and will be the date that it puts at the bottom. And that will not change with revisions.
+
+Me: Okay got it.
+
+Sarah: That'll be set else. The first purchase order I send, no matter how many times I revise that purchase order, change anything in it, that is the date that has to remain.

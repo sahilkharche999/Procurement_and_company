@@ -1,5 +1,5 @@
-const RAW_SERVER_URL = import.meta.env.VITE_SERVER_URL || "/editor-api";
-// const RAW_SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://ec2-52-14-178-145.us-east-2.compute.amazonaws.com:8000/";
+// const RAW_SERVER_URL = import.meta.env.VITE_SERVER_URL || "/editor-api"; // for deployment
+const RAW_SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:8000/";
 
 export const SERVER_URL = RAW_SERVER_URL.endsWith("/")
   ? RAW_SERVER_URL
