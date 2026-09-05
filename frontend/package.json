@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "homepage": "/editor/",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -37,8 +38,7 @@
     "tailwind-merge": "^3.4.1",
     "tailwindcss-animate": "^1.0.7",
     "use-image": "^1.1.4",
-    "xlsx": "^0.18.5",
-    "homepage": "/editor/"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

@@ -25,7 +25,7 @@ async def get_rooms_by_project(project_id: str):
     rooms_coll = get_rooms_collection()
     # Convert project_id to ObjectId for proper MongoDB query
     cursor = rooms_coll.find({"project": as_obj_id(project_id)})
-    docs = await cursor.to_list(1000)
+    docs = await cursor.to_list(None)
     for d in docs:
         normalize_room_doc(d)
     return docs

@@ -4,16 +4,16 @@ import { fetchItems } from '../../actions/items/itemActions'
 
 export function useGetItems() {
     const dispatch = useDispatch()
-    const { items, total, page, pageSize, search, sortBy, sortOrder, loading, error } =
+    const { items, total, search, sortBy, sortOrder, loading, error } =
         useSelector((state) => state.items)
 
     const fetch = useCallback(() => {
-        dispatch(fetchItems({ page, pageSize, search, sortBy, sortOrder }))
-    }, [dispatch, page, pageSize, search, sortBy, sortOrder])
+        dispatch(fetchItems({ search, sortBy, sortOrder }))
+    }, [dispatch, search, sortBy, sortOrder])
 
     useEffect(() => {
         fetch()
     }, [fetch])
 
-    return { items, total, page, pageSize, search, sortBy, sortOrder, loading, error, refetch: fetch }
+    return { items, total, search, sortBy, sortOrder, loading, error, refetch: fetch }
 }

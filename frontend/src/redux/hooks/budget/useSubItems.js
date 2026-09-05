@@ -7,8 +7,6 @@ export function useSubItems() {
     const {
         projectId,
         section,
-        page,
-        pageSize,
         search,
         roomFilter,
         groupByPage,
@@ -20,15 +18,13 @@ export function useSubItems() {
             fetchBudgetItems({
                 projectId,
                 section,
-                page,
-                pageSize,
                 search,
                 roomFilter,
                 groupByPage,
                 groupByRoom,
             })
         )
-    }, [dispatch, projectId, section, page, pageSize, search, roomFilter, groupByPage, groupByRoom])
+    }, [dispatch, projectId, section, search, roomFilter, groupByPage, groupByRoom])
 
     const addSub = useCallback(
         async (itemId, data) => {

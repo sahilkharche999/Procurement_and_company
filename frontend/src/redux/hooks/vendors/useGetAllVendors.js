@@ -7,15 +7,13 @@ export function useGetAllVendors() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
-  const [page, setPage] = useState(0);
-  const pageSize = 50;
 
   const fetchVendors = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const url = buildServerUrl(
-        `/vendors?search=${encodeURIComponent(search)}&limit=${pageSize}&skip=${page * pageSize}`
+        `/vendors?search=${encodeURIComponent(search)}`
       );
       console.log("[useGetAllVendors] Fetching from:", url);
       const response = await fetch(url);
@@ -36,7 +34,7 @@ export function useGetAllVendors() {
     } finally {
       setLoading(false);
     }
-  }, [search, page, pageSize]);
+  }, [search]);
 
   useEffect(() => {
     fetchVendors();
@@ -49,8 +47,6 @@ export function useGetAllVendors() {
     error,
     search,
     setSearch,
-    page,
-    setPage,
     refetch: fetchVendors,
   };
 }

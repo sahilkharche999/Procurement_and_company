@@ -18,16 +18,12 @@ router = APIRouter(prefix="/vendors", tags=["Vendors"])
 @router.get("", response_model=dict)
 async def list_vendors(
     search: str = Query(""),
-    limit: int = Query(1000),
-    skip: int = Query(0),
 ):
-    """Get all vendors with optional search and pagination."""
-    docs, total = await get_all_vendors(search=search, limit=limit, skip=skip)
+    """Get all vendors with optional search."""
+    docs, total = await get_all_vendors(search=search)
     return {
         "vendors": docs,
         "total": total,
-        "limit": limit,
-        "skip": skip,
     }
 
 

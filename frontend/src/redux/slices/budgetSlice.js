@@ -14,8 +14,6 @@ const initialState = {
     projectId: null,
     items: [],
     total: 0,
-    page: 1,
-    pageSize: 12,
     totalSubtotal: 0,
     roomTotals: {},
     loading: false,
@@ -45,17 +43,14 @@ const budgetSlice = createSlice({
             if (state.projectId !== action.payload) {
                 state.projectId = action.payload
                 state.items = []
-                state.page = 1
             }
         },
         setEditingRowId(state, action) { state.editingRowId = action.payload },
-        setSearch(state, action) { state.search = action.payload; state.page = 1 },
-        setRoomFilter(state, action) { state.roomFilter = action.payload; state.page = 1 },
-        setPage(state, action) { state.page = action.payload },
-        setPageSize(state, action) { state.pageSize = action.payload; state.page = 1 },
-        setGroupByPage(state, action) { state.groupByPage = action.payload; state.groupByRoom = false; state.page = 1 },
-        setGroupByRoom(state, action) { state.groupByRoom = action.payload; state.groupByPage = false; state.page = 1 },
-        setSection(state, action) { state.section = action.payload; state.page = 1 },
+        setSearch(state, action) { state.search = action.payload },
+        setRoomFilter(state, action) { state.roomFilter = action.payload },
+        setGroupByPage(state, action) { state.groupByPage = action.payload; state.groupByRoom = false },
+        setGroupByRoom(state, action) { state.groupByRoom = action.payload; state.groupByPage = false },
+        setSection(state, action) { state.section = action.payload },
         clearError(state) { state.error = null },
     },
     extraReducers: (builder) => {
@@ -66,8 +61,6 @@ const budgetSlice = createSlice({
                 s.loading = false
                 s.items = a.payload.items
                 s.total = a.payload.total
-                s.page = a.payload.page
-                s.pageSize = a.payload.page_size
                 s.totalSubtotal = a.payload.total_subtotal
                 s.roomTotals = a.payload.room_totals || {}
             })
@@ -137,8 +130,6 @@ export const {
     setEditingRowId,
     setSearch,
     setRoomFilter,
-    setPage,
-    setPageSize,
     setGroupByPage,
     setGroupByRoom,
     setSection,

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useDispatch, useSelector } from 'react-redux'
 import { ArrowDownAZ, ArrowUpAZ, Loader2, PlusCircle } from 'lucide-react'
 
@@ -14,8 +14,6 @@ import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import {
     setEditingRowId,
-    setPage,
-    setPageSize,
     setSearch,
     setSortOrder,
 } from '../../redux/slices/itemsSlice'
@@ -24,13 +22,14 @@ import { useCreateItem } from '../../redux/hooks/items/useCreateItem'
 import { useUpdateItem } from '../../redux/hooks/items/useUpdateItem'
 import { useDeleteItem } from '../../redux/hooks/items/useDeleteItem'
 import { PriceRegisterSearchInput } from './PriceRegisterSearchInput'
-import { PriceRegisterPaginationControls } from './PriceRegisterPaginationControls'
 import { PriceRegisterRow } from './PriceRegisterRow'
+import { useGetAllItemType } from '../../redux/hooks/settings/itemtype/useGetAllItemType'
+import { buildItemTypeOptions, DEFAULT_ITEM_TYPE } from '../../lib/itemTypes'
 
 const DEFAULT_NEW_ITEM = {
     name: '',
     code: '',
-    type: 'FF&E',
+    type: DEFAULT_ITEM_TYPE,
     description: '',
     price: 0,
     extended_price: 0,
@@ -41,8 +40,6 @@ export function PriceRegisterTable() {
     const {
         items,
         total,
-        page,
-        pageSize,
         search,
         sortOrder,
         loading,
@@ -53,9 +50,15 @@ export function PriceRegisterTable() {
     const { update } = useUpdateItem()
     const { remove } = useDeleteItem()
     const { editingRowId } = useSelector((state) => state.items)
+    const { items: itemTypes } = useGetAllItemType()
 
     const [newItem, setNewItem] = useState(DEFAULT_NEW_ITEM)
     const [creating, setCreating] = useState(false)
+
+    const newItemTypeOptions = useMemo(
+        () => buildItemTypeOptions(itemTypes, newItem.type),
+        [itemTypes, newItem.type]
+    )
 
     const handleCreate = async () => {
         if (!newItem.name.trim()) return
@@ -136,8 +139,11 @@ export function PriceRegisterTable() {
                         onChange={(e) => setNewItem((s) => ({ ...s, type: e.target.value }))}
                         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     >
-                        <option value="FF&E">FF&E</option>
-                        <option value="OFCI">OFCI</option>
+                        {newItemTypeOptions.map((type) => (
+                            <option key={type} value={type}>
+                                {type}
+                            </option>
+                        ))}
                     </select>
                     <Input
                         placeholder="Description"
@@ -205,19 +211,16 @@ export function PriceRegisterTable() {
                                 onCancel={() => dispatch(setEditingRowId(null))}
                                 onSave={handleSave}
                                 onDelete={handleDelete}
+                                itemTypes={itemTypes}
                             />
                         ))}
                     </TableBody>
                 </Table>
             </div>
 
-            <PriceRegisterPaginationControls
-                page={page}
-                pageSize={pageSize}
-                total={total}
-                onPageChange={(p) => dispatch(setPage(p))}
-                onPageSizeChange={(size) => dispatch(setPageSize(size))}
-            />
+            <div className="py-4 text-sm text-muted-foreground">
+                Showing all {total} {total === 1 ? 'entry' : 'entries'}
+            </div>
         </div>
     )
 }

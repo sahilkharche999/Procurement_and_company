@@ -4,17 +4,17 @@ import { deleteUnit as deleteUnitAction, fetchAllUnits } from '../../../actions/
 
 export function useDeleteUnit() {
   const dispatch = useDispatch()
-  const { page, pageSize, search, includeDeleted } = useSelector((state) => state.unitsSettings)
+  const { search, includeDeleted } = useSelector((state) => state.unitsSettings)
 
   const remove = useCallback(
     async (id) => {
       const result = await dispatch(deleteUnitAction(id))
       if (result?.meta?.requestStatus === 'fulfilled') {
-        dispatch(fetchAllUnits({ page, pageSize, search, includeDeleted }))
+        dispatch(fetchAllUnits({ search, includeDeleted }))
       }
       return result
     },
-    [dispatch, page, pageSize, search, includeDeleted]
+    [dispatch, search, includeDeleted]
   )
 
   return { remove }

@@ -33,7 +33,7 @@ async def get_vendor(vendor_id: str) -> dict:
     return doc
 
 
-async def get_all_vendors(search: str = "", limit: int = 1000, skip: int = 0) -> tuple:
+async def get_all_vendors(search: str = "") -> tuple:
     """Get all vendors with optional search."""
     coll = get_vendors_collection()
     query = {}
@@ -47,7 +47,7 @@ async def get_all_vendors(search: str = "", limit: int = 1000, skip: int = 0) ->
         ]
     
     total = await coll.count_documents(query)
-    docs = await coll.find(query).skip(skip).limit(limit).sort("company_name", 1).to_list(limit)
+    docs = await coll.find(query).sort("company_name", 1).to_list(None)
     
     for doc in docs:
         doc["_id"] = str(doc["_id"])

@@ -15,14 +15,10 @@ router = APIRouter(prefix="/settings/units", tags=["Settings"])
 
 @router.get("")
 async def list_units(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=500),
     search: str = Query(""),
     include_deleted: bool = Query(False),
 ):
     return await svc.list_units(
-        page=page,
-        page_size=page_size,
         search=search,
         include_deleted=include_deleted,
     )

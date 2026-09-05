@@ -59,10 +59,10 @@ async def build_editor_state_payload(room_id: str, project_id: str) -> dict:
 
     group_docs = await groups_coll.find(
         {"room": str(room_id), "project": str(project_id)}
-    ).to_list(5000)
+    ).to_list(None)
     mask_docs = await masks_coll.find(
         {"room": str(room_id), "project": str(project_id)}
-    ).to_list(20000)
+    ).to_list(None)
 
     groups_map = {}
     for group in group_docs:

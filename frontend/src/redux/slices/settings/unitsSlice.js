@@ -11,8 +11,6 @@ const initialState = {
   items: [],
   selected: null,
   total: 0,
-  page: 1,
-  pageSize: 50,
   search: '',
   includeDeleted: false,
   editingRowId: null,
@@ -24,20 +22,11 @@ const unitsSlice = createSlice({
   name: 'unitsSettings',
   initialState,
   reducers: {
-    setPage(state, action) {
-      state.page = action.payload
-    },
-    setPageSize(state, action) {
-      state.pageSize = action.payload
-      state.page = 1
-    },
     setSearch(state, action) {
       state.search = action.payload
-      state.page = 1
     },
     setIncludeDeleted(state, action) {
       state.includeDeleted = !!action.payload
-      state.page = 1
     },
     setEditingRowId(state, action) {
       state.editingRowId = action.payload
@@ -56,8 +45,6 @@ const unitsSlice = createSlice({
         state.loading = false
         state.items = action.payload.items || []
         state.total = action.payload.total || 0
-        state.page = action.payload.page || 1
-        state.pageSize = action.payload.page_size || state.pageSize
       })
       .addCase(fetchAllUnits.rejected, (state, action) => {
         state.loading = false
@@ -127,7 +114,7 @@ const unitsSlice = createSlice({
   },
 })
 
-export const { setPage, setPageSize, setSearch, setIncludeDeleted, setEditingRowId, clearError } =
+export const { setSearch, setIncludeDeleted, setEditingRowId, clearError } =
   unitsSlice.actions
 
 export default unitsSlice.reducer

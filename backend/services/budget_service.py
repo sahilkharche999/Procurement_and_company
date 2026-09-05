@@ -113,8 +113,6 @@ async def _max_order(project_id: str) -> int:
 async def list_items(
         project_id: str,
         search: str = "",
-        page: int = 1,
-        page_size: int = 12,
         group_by_room: bool = False,
         group_by_page: bool = False,
         rooms_filter: str = "",
@@ -151,8 +149,8 @@ async def list_items(
     else:
         sort_key = [("order_index", 1)]
 
-    cursor = col.find(filt).sort(sort_key).skip((page - 1) * page_size).limit(page_size)
-    docs = await cursor.to_list(page_size)
+    cursor = col.find(filt).sort(sort_key)
+    docs = await cursor.to_list(None)
 
     # Preload rooms for population
     room_ids = list({ObjectId(d["room"]) for d in docs if d.get("room") and ObjectId.is_valid(str(d["room"]))})
@@ -228,7 +226,7 @@ async def list_items(
         d_serial["subitems"] = resolved_subitems
         items.append(d_serial)
 
-    # Grand total (all non-hidden, including sub-items, not just this page)
+    # Grand total (all non-hidden, including sub-items)
     all_cursor = col.find(filt, {"extended": 1, "hidden_from_total": 1, "room": 1, "subitems": 1})
     all_docs = await all_cursor.to_list(None)
 
@@ -284,8 +282,6 @@ async def list_items(
     return {
         "items": items,
         "total": total,
-        "page": page,
-        "page_size": page_size,
         "total_subtotal": grand_total,
         "room_totals": room_totals,
     }

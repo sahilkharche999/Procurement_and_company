@@ -53,6 +53,7 @@ export async function exportToExcel({
 
             switch (col.id) {
                 case "specNo": val = item.spec_no; break;
+                case "name": val = item.name; break;
                 case "description": val = item.description; break;
                 case "type": val = item.type; break;
                 case "room":

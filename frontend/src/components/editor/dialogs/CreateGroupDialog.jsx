@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useGetAllItemType } from "../../../redux/hooks/settings/itemtype/useGetAllItemType";
+import { buildItemTypeOptions, DEFAULT_ITEM_TYPE } from "../../../lib/itemTypes";
 
 // ─── Hex → [R,G,B] helper ────────────────────────────────────────────────────
 function hexToRgb(hex) {
@@ -55,22 +56,13 @@ export default function CreateGroupDialog({
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setType(initialType || "FF&E");
+    setType(initialType || DEFAULT_ITEM_TYPE);
   }, [initialType]);
 
-  const typeOptions = useMemo(() => {
-    const fromSettings = configuredItemTypes
-      .map((t) => String(t?.name || "").trim())
-      .filter(Boolean);
-
-    const defaults = ["FF&E", "OFCI"];
-    const currentType = String(type || "").trim();
-
-    const merged = [...fromSettings, ...defaults];
-    if (currentType) merged.push(currentType);
-
-    return Array.from(new Set(merged));
-  }, [configuredItemTypes, type]);
+  const typeOptions = useMemo(
+    () => buildItemTypeOptions(configuredItemTypes, type),
+    [configuredItemTypes, type]
+  );
 
   const reset = () => {
     setName("");

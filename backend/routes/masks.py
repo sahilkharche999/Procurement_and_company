@@ -60,7 +60,7 @@ async def list_masks(
     if mask_type:
         filt["mask_type"] = mask_type.lower()
 
-    docs = await coll.find(filt).sort("name", 1).to_list(5000)
+    docs = await coll.find(filt).sort("name", 1).to_list(None)
     return [_serialize_mask(d) for d in docs]
 
 

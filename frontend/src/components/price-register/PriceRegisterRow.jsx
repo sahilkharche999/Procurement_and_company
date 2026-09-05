@@ -1,14 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Pencil, Save, X, Trash2 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Input } from '../ui/input'
+import { buildItemTypeOptions } from '../../lib/itemTypes'
 
-export function PriceRegisterRow({ item, isEditing, onStartEdit, onCancel, onSave, onDelete }) {
+export function PriceRegisterRow({ item, isEditing, onStartEdit, onCancel, onSave, onDelete, itemTypes = [] }) {
     const [localItem, setLocalItem] = useState({ ...item })
 
     useEffect(() => {
         setLocalItem({ ...item })
     }, [item, isEditing])
+
+    // Configured types from Settings, plus this record's own value so editing
+    // an item never silently rewrites a type that was removed from Settings.
+    const typeOptions = useMemo(
+        () => buildItemTypeOptions(itemTypes, localItem.type),
+        [itemTypes, localItem.type]
+    )
 
     const handleChange = (field, value) => {
         setLocalItem((prev) => ({ ...prev, [field]: value }))
@@ -55,8 +63,11 @@ export function PriceRegisterRow({ item, isEditing, onStartEdit, onCancel, onSav
                         onChange={(e) => handleChange('type', e.target.value)}
                         className="flex h-8 w-full rounded-md border border-input bg-background px-3 py-1 text-sm"
                     >
-                        <option value="FF&E">FF&E</option>
-                        <option value="OFCI">OFCI</option>
+                        {typeOptions.map((type) => (
+                            <option key={type} value={type}>
+                                {type}
+                            </option>
+                        ))}
                     </select>
                 ) : (
                     item.type

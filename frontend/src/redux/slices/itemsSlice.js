@@ -4,8 +4,6 @@ import { fetchItems, createItem, updateItem, deleteItem } from '../actions/items
 const initialState = {
     items: [],
     total: 0,
-    page: 1,
-    pageSize: 12,
     search: '',
     sortBy: 'name',
     sortOrder: 'asc',
@@ -18,24 +16,14 @@ const itemsSlice = createSlice({
     name: 'items',
     initialState,
     reducers: {
-        setPage(state, action) {
-            state.page = action.payload
-        },
-        setPageSize(state, action) {
-            state.pageSize = action.payload
-            state.page = 1
-        },
         setSearch(state, action) {
             state.search = action.payload
-            state.page = 1
         },
         setSortBy(state, action) {
             state.sortBy = action.payload
-            state.page = 1
         },
         setSortOrder(state, action) {
             state.sortOrder = action.payload
-            state.page = 1
         },
         setEditingRowId(state, action) {
             state.editingRowId = action.payload
@@ -54,8 +42,6 @@ const itemsSlice = createSlice({
                 state.loading = false
                 state.items = action.payload.items || []
                 state.total = action.payload.total || 0
-                state.page = action.payload.page || 1
-                state.pageSize = action.payload.page_size || state.pageSize
             })
             .addCase(fetchItems.rejected, (state, action) => {
                 state.loading = false
@@ -106,8 +92,6 @@ const itemsSlice = createSlice({
 })
 
 export const {
-    setPage,
-    setPageSize,
     setSearch,
     setSortBy,
     setSortOrder,

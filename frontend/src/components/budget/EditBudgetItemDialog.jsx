@@ -16,6 +16,7 @@ import {
   SelectItem,
 } from '../ui/select'
 import { useGetAllItemType } from '../../redux/hooks/settings/itemtype/useGetAllItemType'
+import { buildItemTypeOptions, DEFAULT_ITEM_TYPE } from '../../lib/itemTypes'
 import { useGetAllUnits } from '../../redux/hooks/settings/units/useGetAllUnits'
 
 export function EditBudgetItemDialog({
@@ -43,19 +44,10 @@ export function EditBudgetItemDialog({
   })
   const [initialQty, setInitialQty] = useState('1')
 
-  const typeOptions = useMemo(() => {
-    const fromSettings = itemTypes
-      .map((t) => String(t?.name || '').trim())
-      .filter(Boolean)
-
-    const currentType = String(formData.type || '').trim()
-    const defaults = ['FF&E', 'OFCI']
-
-    const merged = [...fromSettings, ...defaults]
-    if (currentType) merged.push(currentType)
-
-    return Array.from(new Set(merged))
-  }, [itemTypes, formData.type])
+  const typeOptions = useMemo(
+    () => buildItemTypeOptions(itemTypes, formData.type),
+    [itemTypes, formData.type]
+  )
 
   useEffect(() => {
     if (open && item._id) {

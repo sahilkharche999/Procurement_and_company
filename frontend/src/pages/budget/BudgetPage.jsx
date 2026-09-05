@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useSelector } from "react-redux";
 import { useParams } from "react-router-dom";
 import { BudgetTable } from "../../components/budget/BudgetTable";
 import {
@@ -7,6 +8,7 @@ import {
   Loader2,
   CheckCircle,
   AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { api } from "../../redux/api/apiClient";
@@ -20,6 +22,14 @@ export function BudgetPage({ projectId: propProjectId }) {
   const [genError, setGenError] = useState(null);
   //We'll use a refresh key to force BudgetTable to re-fetch after generation
   const [refreshKey, setRefreshKey] = useState(0);
+  //Loading flag of the budget list itself, so Refresh can show progress
+  const itemsLoading = useSelector((state) => state.budget.loading);
+
+  //Refetch the budget items from the database without regenerating anything
+  const handleRefresh = () => {
+    if (!projectId) return;
+    setRefreshKey((k) => k + 1);
+  };
 
   const handleCreateBudget = async () => {
     if (!projectId) return;
@@ -58,25 +68,41 @@ export function BudgetPage({ projectId: propProjectId }) {
           </div>
         </div>
 
-        {/* Create Budget Button */}
+        {/* Header actions */}
         {projectId && (
-          <Button
-            onClick={handleCreateBudget}
-            disabled={generating}
-            className="gap-2 bg-violet-600 hover:bg-violet-700 text-white shadow-md"
-          >
-            {generating ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Generating Budget…
-              </>
-            ) : (
-              <>
-                <Wand2 className="h-4 w-4" />
-                Create Budget
-              </>
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            {/* Refresh — refetch budget items from the database */}
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={itemsLoading || generating}
+              className="gap-2"
+              title="Refetch budget items from the database"
+            >
+              <RefreshCw
+                className={`h-4 w-4 ${itemsLoading ? "animate-spin" : ""}`}
+              />
+              Refresh
+            </Button>
+
+            <Button
+              onClick={handleCreateBudget}
+              disabled={generating}
+              className="gap-2 bg-violet-600 hover:bg-violet-700 text-white shadow-md"
+            >
+              {generating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Generating Budget…
+                </>
+              ) : (
+                <>
+                  <Wand2 className="h-4 w-4" />
+                  Sync Budget
+                </>
+              )}
+            </Button>
+          </div>
         )}
       </div>
 

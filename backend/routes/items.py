@@ -15,15 +15,11 @@ router = APIRouter(prefix="/items", tags=["Items"])
 
 @router.get("")
 async def list_items(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(12, ge=1, le=100),
     search: str = Query(""),
     sort_by: str = Query("name"),
     sort_order: str = Query("asc"),
 ):
     return await svc.list_items(
-        page=page,
-        page_size=page_size,
         search=search,
         sort_by=sort_by,
         sort_order=sort_order,

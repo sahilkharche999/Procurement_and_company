@@ -3,11 +3,9 @@ import { api } from '../../api/apiClient'
 
 export const fetchItems = createAsyncThunk(
     'items/fetchItems',
-    async ({ page, pageSize, search, sortBy, sortOrder }, { rejectWithValue }) => {
+    async ({ search, sortBy, sortOrder }, { rejectWithValue }) => {
         try {
             const params = new URLSearchParams({
-                page: String(page || 1),
-                page_size: String(pageSize || 12),
                 search: search || '',
                 sort_by: sortBy || 'name',
                 sort_order: sortOrder || 'asc',

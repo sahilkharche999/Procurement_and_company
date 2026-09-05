@@ -10,6 +10,16 @@ from bson import ObjectId
 
 from db.mongo import get_item_types_config_collection
 
+# Item types that ship with the product. They are always offered in the UI and
+# are protected: they cannot be edited or deleted from Settings.
+SYSTEM_ITEM_TYPE_NAMES = ("COM/COL", "FF&E", "OFCI")
+_SYSTEM_ITEM_TYPE_KEYS = {name.strip().lower() for name in SYSTEM_ITEM_TYPE_NAMES}
+
+
+def is_system_item_type_name(name: str) -> bool:
+    """True when `name` is one of the protected system defaults (case-insensitive)."""
+    return str(name or "").strip().lower() in _SYSTEM_ITEM_TYPE_KEYS
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -20,12 +30,11 @@ def _serialize(doc: dict) -> dict:
     data["_id"] = str(data["_id"])
     data["name"] = str(data.get("name", "")).strip()
     data["description"] = str(data.get("description", "")).strip()
+    data["is_system"] = is_system_item_type_name(data["name"])
     return data
 
 
 async def list_item_types(
-    page: int = 1,
-    page_size: int = 50,
     search: str = "",
     include_deleted: bool = False,
 ) -> dict:
@@ -42,19 +51,12 @@ async def list_item_types(
         ]
 
     total = await coll.count_documents(filt)
-    cursor = (
-        coll.find(filt)
-        .sort([("name", 1), ("_id", 1)])
-        .skip((page - 1) * page_size)
-        .limit(page_size)
-    )
-    docs = await cursor.to_list(page_size)
+    cursor = coll.find(filt).sort([("name", 1), ("_id", 1)])
+    docs = await cursor.to_list(None)
 
     return {
         "items": [_serialize(d) for d in docs],
         "total": total,
-        "page": page,
-        "page_size": page_size,
     }
 
 

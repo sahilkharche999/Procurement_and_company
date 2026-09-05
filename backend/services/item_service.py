@@ -28,8 +28,6 @@ def _serialize(doc: dict) -> dict:
 
 
 async def list_items(
-    page: int = 1,
-    page_size: int = 12,
     search: str = "",
     sort_by: str = "name",
     sort_order: str = "asc",
@@ -49,19 +47,12 @@ async def list_items(
     safe_sort_direction = 1 if str(sort_order).lower() == "asc" else -1
 
     total = await coll.count_documents(filt)
-    cursor = (
-        coll.find(filt)
-        .sort([(safe_sort_field, safe_sort_direction), ("_id", 1)])
-        .skip((page - 1) * page_size)
-        .limit(page_size)
-    )
-    docs = await cursor.to_list(page_size)
+    cursor = coll.find(filt).sort([(safe_sort_field, safe_sort_direction), ("_id", 1)])
+    docs = await cursor.to_list(None)
 
     return {
         "items": [_serialize(d) for d in docs],
         "total": total,
-        "page": page,
-        "page_size": page_size,
     }
 
 

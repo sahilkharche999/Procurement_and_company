@@ -27,7 +27,7 @@ async def _find_duplicate_group_code(
     if exclude_group_id:
         filt["_id"] = {"$ne": _as_obj_id(exclude_group_id)}
 
-    docs = await coll.find(filt, {"_id": 1, "code": 1}).to_list(5000)
+    docs = await coll.find(filt, {"_id": 1, "code": 1}).to_list(None)
     for doc in docs:
         if _normalize_group_code(doc.get("code")) == normalized_code:
             return doc
@@ -83,7 +83,7 @@ async def list_groups(
     if project:
         filt["project"] = project
 
-    docs = await coll.find(filt).sort("name", 1).to_list(2000)
+    docs = await coll.find(filt).sort("name", 1).to_list(None)
     return [_serialize_group(d) for d in docs]
 
 

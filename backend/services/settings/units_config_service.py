@@ -25,8 +25,6 @@ def _serialize(doc: dict) -> dict:
 
 
 async def list_units(
-    page: int = 1,
-    page_size: int = 50,
     search: str = "",
     include_deleted: bool = False,
 ) -> dict:
@@ -43,19 +41,12 @@ async def list_units(
         ]
 
     total = await coll.count_documents(filt)
-    cursor = (
-        coll.find(filt)
-        .sort([("name", 1), ("_id", 1)])
-        .skip((page - 1) * page_size)
-        .limit(page_size)
-    )
-    docs = await cursor.to_list(page_size)
+    cursor = coll.find(filt).sort([("name", 1), ("_id", 1)])
+    docs = await cursor.to_list(None)
 
     return {
         "items": [_serialize(d) for d in docs],
         "total": total,
-        "page": page,
-        "page_size": page_size,
     }
 
 

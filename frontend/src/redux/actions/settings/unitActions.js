@@ -3,11 +3,9 @@ import { api } from '../../api/apiClient'
 
 export const fetchAllUnits = createAsyncThunk(
   'settings/units/fetchAll',
-  async ({ page, pageSize, search, includeDeleted }, { rejectWithValue }) => {
+  async ({ search, includeDeleted }, { rejectWithValue }) => {
     try {
       const params = new URLSearchParams({
-        page: String(page || 1),
-        page_size: String(pageSize || 50),
         search: search || '',
       })
       if (includeDeleted) {

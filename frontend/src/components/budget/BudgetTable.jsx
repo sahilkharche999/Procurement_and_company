@@ -41,8 +41,6 @@ import { useGetAllVendors } from "../../redux/hooks/vendors/useGetAllVendors";
 import {
   setEditingRowId,
   setSearch,
-  setPage,
-  setPageSize,
   setRoomFilter,
   setGroupByPage,
   setGroupByRoom,
@@ -51,7 +49,6 @@ import {
 } from "../../redux/slices/budgetSlice";
 
 import { BudgetRow } from "./BudgetRow";
-import { PaginationControls } from "./PaginationControls";
 import { SearchInput } from "./SearchInput";
 import { CreateRoomDialog } from "./CreateRoomDialog";
 import { CreateBudgetItemDialog } from "./CreateBudgetItemDialog";
@@ -83,8 +80,6 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
   const {
     items,
     total,
-    page,
-    pageSize,
     totalSubtotal,
     roomTotals,
     loading,
@@ -247,8 +242,6 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
   };
 
   const handleSearchChange = (val) => dispatch(setSearch(val));
-  const handlePageChange = (p) => dispatch(setPage(p));
-  const handlePageSizeChange = (size) => dispatch(setPageSize(size));
 
   const handleToggleRoomFilter = (roomId) => {
     let newFilter = [...(roomFilter || [])];
@@ -769,14 +762,10 @@ export function BudgetTable({ projectId: propProjectId, refreshKey }) {
             </Table>
           </div>
 
-          {/* Pagination */}
-          <PaginationControls
-            page={page}
-            pageSize={pageSize}
-            total={total}
-            onPageChange={handlePageChange}
-            onPageSizeChange={handlePageSizeChange}
-          />
+          {/* Row count — every item is fetched, so there is nothing to page */}
+          <div className="py-4 text-sm text-muted-foreground">
+            Showing all {total} {total === 1 ? "entry" : "entries"}
+          </div>
         </>
       )}
       {/* Modals & Dialogs */}

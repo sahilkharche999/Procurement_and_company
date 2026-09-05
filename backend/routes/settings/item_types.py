@@ -15,14 +15,10 @@ router = APIRouter(prefix="/settings/item-types", tags=["Settings"])
 
 @router.get("")
 async def list_item_types(
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=500),
     search: str = Query(""),
     include_deleted: bool = Query(False),
 ):
     return await svc.list_item_types(
-        page=page,
-        page_size=page_size,
         search=search,
         include_deleted=include_deleted,
     )
@@ -40,7 +36,27 @@ async def get_item_type(item_type_id: str):
 async def create_item_type(body: ItemTypeConfigCreate):
     if not body.name.strip():
         raise HTTPException(status_code=400, detail="name is required")
+    # Reject re-adding a system default: the duplicate would inherit the locked
+    # state from its name and could then never be removed.
+    if svc.is_system_item_type_name(body.name):
+        raise HTTPException(
+            status_code=409,
+            detail=f"'{body.name.strip()}' is a system default item type and already exists.",
+        )
     return await svc.create_item_type(body.model_dump())
+
+
+async def _get_editable_item_type_or_error(item_type_id: str, action: str) -> dict:
+    """Load an item type, rejecting system defaults which must stay untouched."""
+    existing = await svc.get_item_type(item_type_id)
+    if existing is None:
+        raise HTTPException(status_code=404, detail="Item type not found")
+    if existing.get("is_system"):
+        raise HTTPException(
+            status_code=403,
+            detail=f"'{existing.get('name')}' is a system default item type and cannot be {action}.",
+        )
+    return existing
 
 
 @router.put("/{item_type_id}")
@@ -48,6 +64,8 @@ async def update_item_type(item_type_id: str, body: ItemTypeConfigUpdate):
     updates = body.model_dump(exclude_none=True)
     if "name" in updates and not str(updates.get("name", "")).strip():
         raise HTTPException(status_code=400, detail="name cannot be empty")
+
+    await _get_editable_item_type_or_error(item_type_id, "edited")
 
     doc = await svc.update_item_type(item_type_id, updates)
     if doc is None:
@@ -57,6 +75,8 @@ async def update_item_type(item_type_id: str, body: ItemTypeConfigUpdate):
 
 @router.delete("/{item_type_id}")
 async def delete_item_type(item_type_id: str):
+    await _get_editable_item_type_or_error(item_type_id, "deleted")
+
     ok = await svc.delete_item_type(item_type_id)
     if not ok:
         raise HTTPException(status_code=404, detail="Item type not found")

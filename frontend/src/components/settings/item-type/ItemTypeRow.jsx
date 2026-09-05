@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Button } from '../../ui/button'
 import { Input } from '../../ui/input'
-import { Pencil, Save, X, Trash2 } from 'lucide-react'
+import { Pencil, Save, X, Trash2, Lock } from 'lucide-react'
 
 export function ItemTypeRow({
   item,
@@ -17,6 +17,11 @@ export function ItemTypeRow({
     setLocal({ ...item })
   }, [item, isEditing])
 
+  // System defaults (COM/COL, FF&E, OFCI) are read-only — the backend rejects
+  // edits and deletes on them, so never put the row into edit mode either.
+  const isSystem = !!item.is_system
+  const editing = isEditing && !isSystem
+
   return (
     <tr
       className={`border-b hover:bg-muted/40 transition-colors ${
@@ -24,7 +29,7 @@ export function ItemTypeRow({
       }`}
     >
       <td className="p-2 align-middle w-56">
-        {isEditing ? (
+        {editing ? (
           <Input
             className="h-8"
             value={local.name || ''}
@@ -33,6 +38,11 @@ export function ItemTypeRow({
         ) : (
           <div className="inline-flex items-center gap-2">
             <span className="font-medium">{item.name}</span>
+            {isSystem && (
+              <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full border border-violet-300 bg-violet-50 text-violet-700">
+                System
+              </span>
+            )}
             {item.is_deleted && (
               <span className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full border border-amber-300 bg-amber-50 text-amber-700">
                 Deleted
@@ -43,7 +53,7 @@ export function ItemTypeRow({
       </td>
 
       <td className="p-2 align-middle">
-        {isEditing ? (
+        {editing ? (
           <Input
             className="h-8"
             value={local.description || ''}
@@ -60,7 +70,15 @@ export function ItemTypeRow({
 
       <td className="p-2 align-middle w-36 text-right">
         <div className="flex items-center justify-end gap-1">
-          {isEditing ? (
+          {isSystem ? (
+            <span
+              className="inline-flex items-center gap-1.5 pr-2 text-xs text-muted-foreground"
+              title="System default item type — it cannot be edited or deleted"
+            >
+              <Lock className="h-3.5 w-3.5" />
+              Locked
+            </span>
+          ) : editing ? (
             <>
               <Button
                 size="icon"

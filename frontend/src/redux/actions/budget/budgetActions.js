@@ -5,12 +5,10 @@ import { api } from '../../api/apiClient'
 
 export const fetchBudgetItems = createAsyncThunk(
     'budget/fetchItems',
-    async ({ projectId, section, page, pageSize, search, roomFilter, groupByPage, groupByRoom }, { rejectWithValue }) => {
+    async ({ projectId, section, search, roomFilter, groupByPage, groupByRoom }, { rejectWithValue }) => {
         try {
             const params = new URLSearchParams({
                 section: section || 'general',
-                page: page || 1,
-                page_size: pageSize || 12,
                 search: search || '',
                 rooms: roomFilter && roomFilter.length > 0 ? roomFilter.join(",") : '',
                 group_by_page: groupByPage || false,
