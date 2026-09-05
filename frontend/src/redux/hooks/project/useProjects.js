@@ -5,6 +5,8 @@ import {
     fetchProject,
     createProject,
     deleteProject,
+    fetchDeletedProjects,
+    restoreProject,
     fetchProjectPages,
     fetchAvailablePages,
     updateProjectPages,
@@ -19,6 +21,8 @@ export function useProjects() {
     const dispatch = useDispatch()
     const {
         projects,
+        deletedProjects,
+        deletedLoading,
         loading,
         error,
         currentProject,
@@ -42,8 +46,19 @@ export function useProjects() {
         [dispatch]
     )
 
+    // Soft delete — the project moves to the recycle bin, nothing is destroyed.
     const remove = useCallback(
         (id) => dispatch(deleteProject(id)),
+        [dispatch]
+    )
+
+    const loadDeleted = useCallback(
+        () => dispatch(fetchDeletedProjects()),
+        [dispatch]
+    )
+
+    const restore = useCallback(
+        (id) => dispatch(restoreProject(id)),
         [dispatch]
     )
 
@@ -112,6 +127,8 @@ export function useProjects() {
 
     return {
         projects,
+        deletedProjects,
+        deletedLoading,
         loading,
         error,
         currentProject,
@@ -125,6 +142,8 @@ export function useProjects() {
         loadOne,
         create,
         remove,
+        restore,
+        loadDeleted,
         rename,
         downloadMetadata,
         loadProjectPages,

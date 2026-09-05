@@ -69,6 +69,10 @@ class ProjectOut(BaseModel):
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
 
+    # Recycle bin. Absent on projects that have never been deleted.
+    is_deleted: bool = False
+    deleted_at: Optional[str] = None
+
     model_config = {"populate_by_name": True}
 
     @classmethod

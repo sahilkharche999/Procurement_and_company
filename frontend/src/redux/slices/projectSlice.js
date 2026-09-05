@@ -1,9 +1,11 @@
 import { createSlice } from '@reduxjs/toolkit'
 import {
     fetchProjects,
+    fetchDeletedProjects,
     fetchProject,
     createProject,
     deleteProject,
+    restoreProject,
     fetchProjectPages,
     fetchAvailablePages,
     updateProjectPages,
@@ -15,6 +17,9 @@ const getId = (p) => p._id || p.id
 
 const initialState = {
     projects: [],
+    // Recycle bin, loaded separately so the working list stays untouched.
+    deletedProjects: [],
+    deletedLoading: false,
     loading: false,
     error: null,
     // Single project fetched directly (includes selected_diagram_metadata)
@@ -91,16 +96,38 @@ const projectSlice = createSlice({
                 state.projects.unshift(action.payload)
             })
 
-        // ── Delete ─────────────────────────────────────────────────────────
+        // ── Delete (soft) ──────────────────────────────────────────────────
         builder
             .addCase(deleteProject.fulfilled, (state, action) => {
-                // action.payload is the deleted _id string
+                // Only leaves the working list — the project still exists and
+                // shows up under Deleted until it is restored.
                 state.projects = state.projects.filter(
                     (p) => getId(p) !== action.payload
                 )
                 if (state.currentProject && getId(state.currentProject) === action.payload) {
                     state.currentProject = null
                 }
+            })
+
+        // ── Recycle bin ────────────────────────────────────────────────────
+        builder
+            .addCase(fetchDeletedProjects.pending, (state) => {
+                state.deletedLoading = true
+            })
+            .addCase(fetchDeletedProjects.fulfilled, (state, action) => {
+                state.deletedLoading = false
+                state.deletedProjects = action.payload
+            })
+            .addCase(fetchDeletedProjects.rejected, (state, action) => {
+                state.deletedLoading = false
+                state.error = action.payload || 'Failed to load deleted projects'
+            })
+            .addCase(restoreProject.fulfilled, (state, action) => {
+                const id = getId(action.payload)
+                state.deletedProjects = state.deletedProjects.filter(
+                    (p) => getId(p) !== id
+                )
+                state.projects.unshift(action.payload)
             })
 
         // ── Fetch project pages (saved images) ─────────────────────────────

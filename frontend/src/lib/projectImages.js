@@ -10,6 +10,19 @@
  * Uploads now create real diagram documents, so they arrive through `diagrams`.
  * The metadata list is still merged for images uploaded before that change.
  */
+/**
+ * What to call a drawing on screen.
+ *
+ * `display_name` is a cosmetic override; `filename` stays the identifier used
+ * for selection keys, add/remove payloads and the backend's room-extraction
+ * lookup, so it is never replaced — only hidden behind a friendlier label.
+ */
+export function drawingLabel(img) {
+  const custom = String(img?.display_name || "").trim();
+  if (custom) return custom;
+  return img?.filename || "Untitled drawing";
+}
+
 export function getProjectImages(project) {
   const diagrams = Array.isArray(project?.diagrams) ? project.diagrams : [];
   const metaImages = Array.isArray(project?.selected_diagram_metadata?.images)

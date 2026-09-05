@@ -9,6 +9,7 @@ import shutil
 from datetime import datetime
 
 from bson import ObjectId
+from pymongo import ReturnDocument
 
 from config import LOCAL_FILE_DB
 from db.mongo import (
@@ -41,15 +42,71 @@ async def create_project_document(data: dict) -> dict:
     return doc
 
 
-async def get_all_projects() -> list[dict]:
-    """Return all projects, newest first."""
+async def get_all_projects(deleted: bool = False) -> list[dict]:
+    """
+    Return projects, newest first.
+
+    `deleted=False` lists the working set; `deleted=True` lists the recycle bin.
+    Projects deleted before soft-delete existed have no `is_deleted` field at
+    all, so absence is treated as not-deleted.
+    """
     col = get_projects_collection()
-    cursor = col.find().sort("created_at", -1)
+    if deleted:
+        filt = {"is_deleted": True}
+        sort_key = "deleted_at"
+    else:
+        filt = {"is_deleted": {"$ne": True}}
+        sort_key = "created_at"
+
+    cursor = col.find(filt).sort(sort_key, -1)
     docs = []
     async for doc in cursor:
         doc["_id"] = str(doc["_id"])
         docs.append(doc)
     return docs
+
+
+async def soft_delete_project(project_id: str) -> dict | None:
+    """
+    Mark a project deleted without destroying anything.
+
+    Nothing is removed: no files, no diagrams, no rooms, no budget items. The
+    project simply stops appearing in the working list and can be restored
+    intact. This replaced a cascading hard delete that also `rmtree`'d the
+    project folder — one stray click used to be unrecoverable.
+    """
+    if not ObjectId.is_valid(project_id):
+        return None
+    col = get_projects_collection()
+    now = datetime.utcnow().isoformat()
+    result = await col.find_one_and_update(
+        {"_id": ObjectId(project_id)},
+        {"$set": {"is_deleted": True, "deleted_at": now, "updated_at": now}},
+        return_document=ReturnDocument.AFTER,
+    )
+    if not result:
+        return None
+    result["_id"] = str(result["_id"])
+    return result
+
+
+async def restore_project(project_id: str) -> dict | None:
+    """Clear the deleted mark, putting the project back in the working list."""
+    if not ObjectId.is_valid(project_id):
+        return None
+    col = get_projects_collection()
+    result = await col.find_one_and_update(
+        {"_id": ObjectId(project_id)},
+        {
+            "$unset": {"is_deleted": "", "deleted_at": ""},
+            "$set": {"updated_at": datetime.utcnow().isoformat()},
+        },
+        return_document=ReturnDocument.AFTER,
+    )
+    if not result:
+        return None
+    result["_id"] = str(result["_id"])
+    return result
 
 
 async def get_project_by_id(project_id: str) -> dict | None:
@@ -143,6 +200,8 @@ async def get_project_by_id(project_id: str) -> dict | None:
                 # drawing set to disambiguate them.
                 "pdf_id": diag_pdf_id,
                 "pdf_name": pdf_name_map.get(diag_pdf_id, ""),
+                # Cosmetic label; the UI falls back to `filename` when empty.
+                "display_name": diag.get("display_name", ""),
             })
 
     except Exception as e:
@@ -167,7 +226,13 @@ async def update_project(project_id: str, updates: dict) -> dict | None:
 
 async def delete_project(project_id: str) -> bool:
     """
-    Delete a project and all related resources.
+    Permanently delete a project and everything belonging to it.
+
+    NOT WIRED TO ANY ROUTE. `DELETE /projects/{id}` calls soft_delete_project
+    instead. This is irreversible — it removes the project folder from disk and
+    cascades across every collection, and a single accidental click through it
+    destroyed a live project once. Kept only as the basis for a future
+    purge-after-N-days job, which should take an explicit confirmation.
 
     Steps:
       1) Delete the project root folder from local_file_db/project_{project_id}
@@ -282,6 +347,7 @@ async def attach_diagram_metadata(project_id: str, metadata_path: str | None = N
             "sub_index": d.get("sub_index", 0),
             "url": d.get("diagram_image_url", ""),
             "is_selected": True,
+            "display_name": d.get("display_name", ""),
         })
 
     images.sort(key=lambda x: (x.get("page_number", 0), x.get("sub_index", 0), x.get("filename", "")))

@@ -14,7 +14,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { useProjects } from "../../redux/hooks/project/useProjects";
 import { buildServerUrl } from "../../config";
-import { getProjectImages } from "../../lib/projectImages";
+import { getProjectImages, drawingLabel } from "../../lib/projectImages";
 
 // Helper for polygon SVG rendering
 const toSvgPoints = (polygon, width, height) => {
@@ -495,8 +495,7 @@ export function RoomSeparatorTab({ project }) {
           >
             {images.map((img, i) => (
               <option key={i} value={i}>
-                Page {img.page_num || img.page_number} - {img.label || "full"} (
-                {img.filename.slice(0, 10)}...)
+                Page {img.page_num || img.page_number} — {drawingLabel(img)}
               </option>
             ))}
           </select>

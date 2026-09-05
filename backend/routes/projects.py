@@ -45,9 +45,13 @@ async def create_project(body: ProjectCreate):
 
 # ── List all ───────────────────────────────────────────────────────────────────
 @router.get("", response_model=list[ProjectOut])
-async def list_projects():
-    """Return all projects, newest first."""
-    docs = await project_service.get_all_projects()
+async def list_projects(deleted: bool = False):
+    """
+    Return projects, newest first.
+
+    `?deleted=true` returns the recycle bin instead of the working list.
+    """
+    docs = await project_service.get_all_projects(deleted=deleted)
     return [ProjectOut.from_mongo(d) for d in docs]
 
 
@@ -123,14 +127,35 @@ async def update_group_registry(project_id: str, body: dict):
     return ProjectOut.from_mongo(doc)
 
 
-# ── Delete ─────────────────────────────────────────────────────────────────────
+# ── Delete (soft) ──────────────────────────────────────────────────────────────
 @router.delete("/{project_id}")
 async def delete_project(project_id: str):
-    """Permanently delete a project from MongoDB."""
-    deleted = await project_service.delete_project(project_id)
-    if not deleted:
+    """
+    Move a project to the recycle bin.
+
+    Nothing is destroyed — no files, diagrams, rooms or budget items. The
+    project is hidden from the working list and can be restored intact via
+    POST /projects/{id}/restore.
+    """
+    doc = await project_service.soft_delete_project(project_id)
+    if not doc:
         raise HTTPException(status_code=404, detail="Project not found")
-    return {"ok": True, "deleted_id": project_id}
+    return {
+        "ok": True,
+        "deleted_id": project_id,
+        "soft_deleted": True,
+        "deleted_at": doc.get("deleted_at"),
+    }
+
+
+# ── Restore ────────────────────────────────────────────────────────────────────
+@router.post("/{project_id}/restore", response_model=ProjectOut)
+async def restore_project(project_id: str):
+    """Bring a project back from the recycle bin."""
+    doc = await project_service.restore_project(project_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return ProjectOut.from_mongo(doc)
 
 
 # ── Drawing sets (architectural PDFs uploaded to this project) ─────────────────
@@ -146,6 +171,45 @@ async def list_project_pdfs(project_id: str):
     if not exists:
         raise HTTPException(status_code=404, detail="Project not found")
     return await pdf_svc.list_project_pdfs(project_id)
+
+
+# ── Rename a drawing (cosmetic only) ───────────────────────────────────────────
+@router.patch("/{project_id}/drawings/{diagram_id}")
+async def rename_drawing(project_id: str, diagram_id: str, body: dict):
+    """
+    Set or clear a drawing's display name.
+
+    Purely a label. `filename` stays the identifier that room extraction and the
+    add/remove endpoints match on, so a rename can never break a lookup. Sending
+    an empty name clears the override and the filename shows again.
+
+    The name lives on the diagram rather than in `selected_diagram_metadata`
+    because that array is rebuilt from the diagrams collection by
+    attach_diagram_metadata — anything stored only there would be wiped.
+    """
+    if not ObjectId.is_valid(project_id) or not ObjectId.is_valid(diagram_id):
+        raise HTTPException(status_code=400, detail="Invalid project or drawing id")
+
+    display_name = str(body.get("display_name") or "").strip()[:120]
+
+    diagrams_coll = get_diagrams_collection()
+    project_values = [project_id]
+    if ObjectId.is_valid(project_id):
+        project_values.append(ObjectId(project_id))
+
+    update = (
+        {"$set": {"display_name": display_name}}
+        if display_name
+        else {"$unset": {"display_name": ""}}
+    )
+    result = await diagrams_coll.update_one(
+        {"_id": ObjectId(diagram_id), "project": {"$in": project_values}},
+        update,
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Drawing not found in this project")
+
+    return {"ok": True, "id": diagram_id, "display_name": display_name}
 
 
 # ── Internal Pages (available in extracted_diagrams dir) ───────────────────────
@@ -199,6 +263,8 @@ async def get_available_pages(project_id: str, pdf_id: str = ""):
             "is_selected": d.get("is_selected", False),
             "pdf_id": d_pdf_id,
             "pdf_name": pdf_name_map.get(d_pdf_id, ""),
+            # Cosmetic label; the UI falls back to `filename` when empty.
+            "display_name": d.get("display_name", ""),
         })
 
     images.sort(key=lambda x: (x.get("pdf_name", ""), x.get("page_num", 0),
@@ -401,6 +467,10 @@ async def upload_image_to_mongo_project(
 
     sub_index = await diagrams_coll.count_documents({"project": project_oid, "page": page_id})
 
+    # Stored names carry a uniqueness timestamp, so keep the name the user chose
+    # as the label. They can still rename it later.
+    original_label = os.path.splitext(file.filename or "")[0].strip()[:120]
+
     diagram_result = await diagrams_coll.insert_one({
         "project": project_oid,
         "page": page_id,
@@ -408,6 +478,7 @@ async def upload_image_to_mongo_project(
         "diagram_seq": chr(ord("a") + min(sub_index, 25)),
         "diagram_image_url": url,
         "filename": filename,
+        "display_name": original_label,
         "label": label,
         "sub_index": sub_index,
         "is_selected": True,
@@ -421,6 +492,7 @@ async def upload_image_to_mongo_project(
         "id": str(diagram_id),
         "diagram_id": str(diagram_id),
         "filename": filename,
+        "display_name": original_label,
         "url": url,
         "page_number": page_no,
         "label": label,

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useProjects } from "../../redux/hooks/project/useProjects";
 import { CreateProjectDialog } from "./CreateProjectDialog";
+import { DeleteProjectDialog } from "./DeleteProjectDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import {
@@ -42,6 +43,7 @@ export function ProjectsSection() {
   const [editingName, setEditingName] = useState("");
   const [savingId, setSavingId] = useState(null);
   const [creating, setCreating] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState(null);
 
   //Create the project, then go straight into it so drawings can be added
   const handleCreate = async (data) => {
@@ -55,11 +57,19 @@ export function ProjectsSection() {
     load();
   }, [load]);
 
-  const handleDelete = async (e, id) => {
+  // Deleting is confirmed first and is reversible — the project moves to the
+  // Deleted tab rather than being destroyed.
+  const askDelete = (e, project) => {
     e.stopPropagation();
+    setPendingDelete(project);
+  };
+
+  const confirmDelete = async (project) => {
+    const id = getId(project);
     setDeletingId(id);
-    await remove(id);
+    const result = await remove(id);
     setDeletingId(null);
+    return result;
   };
 
   const handleDownload = async (e, project) => {
@@ -108,6 +118,12 @@ export function ProjectsSection() {
       open={creating}
       onOpenChange={setCreating}
       onCreate={handleCreate}
+    />
+    <DeleteProjectDialog
+      project={pendingDelete}
+      open={!!pendingDelete}
+      onOpenChange={(next) => !next && setPendingDelete(null)}
+      onConfirm={confirmDelete}
     />
     <Card className="col-span-full">
       <CardHeader className="pb-4">
@@ -307,7 +323,7 @@ export function ProjectsSection() {
                       variant="ghost"
                       className="h-7 w-7 p-0 text-destructive hover:bg-destructive/10 disabled:opacity-40"
                       disabled={deletingId === pid}
-                      onClick={(e) => handleDelete(e, pid)}
+                      onClick={(e) => askDelete(e, project)}
                       title="Delete project"
                     >
                       {deletingId === pid ? (

@@ -13,6 +13,31 @@ export const fetchProjects = createAsyncThunk(
     }
 )
 
+// The recycle bin — projects marked deleted but never destroyed.
+export const fetchDeletedProjects = createAsyncThunk(
+    'projects/fetchDeletedProjects',
+    async (_, { rejectWithValue }) => {
+        try {
+            const res = await api.get('/projects?deleted=true')
+            return res.data
+        } catch (err) {
+            return rejectWithValue(err.response?.data?.detail || err.message)
+        }
+    }
+)
+
+export const restoreProject = createAsyncThunk(
+    'projects/restoreProject',
+    async (id, { rejectWithValue }) => {
+        try {
+            const res = await api.post(`/projects/${id}/restore`)
+            return res.data
+        } catch (err) {
+            return rejectWithValue(err.response?.data?.detail || err.message)
+        }
+    }
+)
+
 export const fetchProject = createAsyncThunk(
     'projects/fetchProject',
     async (id, { rejectWithValue }) => {

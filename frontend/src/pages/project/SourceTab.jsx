@@ -20,10 +20,12 @@ import {
   Download,
   Files,
   MoreHorizontal,
+  Pencil,
 } from "lucide-react";
 import { buildServerUrl } from "../../config";
+import { api } from "../../redux/api/apiClient";
 import { ProjectDrawings } from "../../components/project/ProjectDrawings";
-import { getProjectImages } from "../../lib/projectImages";
+import { getProjectImages, drawingLabel } from "../../lib/projectImages";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -90,8 +92,8 @@ function Lightbox({ images, startIndex, onClose }) {
           className="max-w-full max-h-[80vh] object-contain rounded-xl shadow-2xl"
         />
         <div className="flex items-center gap-3">
-          <span className="text-white/50 text-xs font-mono bg-white/[0.08] rounded-full px-3 py-1">
-            {img.label || img.filename}
+          <span className="text-white/50 text-xs bg-white/[0.08] rounded-full px-3 py-1">
+            {drawingLabel(img)}
           </span>
           <a
             href={url}
@@ -135,10 +137,33 @@ function ThumbCard({
   busy,
   onToggle,
   onQuickAction,
+  onRename,
   onDoubleClick,
 }) {
   const [err, setErr] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
   const url = buildServerUrl(img.url);
+  const label = drawingLabel(img);
+  // Legacy entries that never became diagram documents have no id to rename.
+  const canRename = !!img.id;
+
+  const startEdit = (e) => {
+    e.stopPropagation();
+    setDraft(String(img.display_name || "").trim());
+    setEditing(true);
+  };
+
+  const commit = async () => {
+    setEditing(false);
+    const next = draft.trim();
+    if (next === String(img.display_name || "").trim()) return;
+    await onRename?.(img, next);
+  };
+
+  // The tile itself toggles selection and opens the lightbox, so every event
+  // from the rename field has to stop before it reaches the card.
+  const swallow = (e) => e.stopPropagation();
 
   return (
     <div
@@ -246,7 +271,7 @@ function ThumbCard({
         </div>
       </div>
 
-      {/* ── Footer: filename + label — always visible below image ── */}
+      {/* ── Footer: name + label — always visible below image ── */}
       <div
         className={`px-2.5 py-2 border-t flex items-center gap-1.5 min-w-0 transition-colors
                 ${
@@ -255,18 +280,53 @@ function ThumbCard({
                     : "bg-card border-border/50"
                 }`}
       >
-        {/* Filename — monospace, truncates with full name in tooltip */}
-        <span
-          className={`flex-1 min-w-0 text-[11px] font-semibold font-mono truncate leading-none
+        {editing ? (
+          <input
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onClick={swallow}
+            onDoubleClick={swallow}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === "Enter") commit();
+              if (e.key === "Escape") setEditing(false);
+            }}
+            placeholder={img.filename}
+            maxLength={120}
+            className="flex-1 min-w-0 text-[11px] font-semibold rounded border border-violet-400/60 bg-background px-1.5 py-0.5 leading-none focus:outline-none focus:ring-1 focus:ring-violet-500"
+          />
+        ) : (
+          <>
+            {/* Shows the custom name when set, the stored filename otherwise */}
+            <span
+              className={`flex-1 min-w-0 text-[11px] font-semibold truncate leading-none
+                        ${img.display_name ? "" : "font-mono"}
                         ${
                           checked
                             ? "text-violet-700 dark:text-violet-300"
                             : "text-foreground/80"
                         }`}
-          title={img.filename}
-        >
-          {img.filename}
-        </span>
+              title={
+                img.display_name ? `${label}\n${img.filename}` : img.filename
+              }
+            >
+              {label}
+            </span>
+
+            {canRename && (
+              <button
+                type="button"
+                onClick={startEdit}
+                title="Rename this drawing"
+                className="shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity text-muted-foreground hover:text-violet-500 p-0.5"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            )}
+          </>
+        )}
 
         {/* Label badge */}
         <span
@@ -292,6 +352,7 @@ function PageGroup({
   busyFile,
   onToggle,
   onQuickAction,
+  onRename,
   onImageDoubleClick,
 }) {
   const [open, setOpen] = useState(true);
@@ -333,6 +394,7 @@ function PageGroup({
               busy={busyFile === img.filename}
               onToggle={() => onToggle(img.filename)}
               onQuickAction={() => onQuickAction(img)}
+              onRename={onRename}
               onDoubleClick={() => onImageDoubleClick(images, i)}
             />
           ))}
@@ -662,6 +724,23 @@ export function SourceTab({ project }) {
     }
   };
 
+  // Cosmetic rename. `filename` is untouched, so selection state, the
+  // add/remove payloads and room extraction all keep working unchanged.
+  const handleRename = async (img, displayName) => {
+    if (!img?.id) return;
+    setBusyFile(img.filename);
+    try {
+      await api.patch(`/projects/${id}/drawings/${img.id}`, {
+        display_name: displayName,
+      });
+      await refresh();
+    } catch (err) {
+      console.warn("[rename] failed:", err?.response?.data?.detail || err.message);
+    } finally {
+      setBusyFile(null);
+    }
+  };
+
   const handleDownload = async () => {
     setDownloadingId(id);
     await downloadMetadata(project);
@@ -928,6 +1007,7 @@ export function SourceTab({ project }) {
                   busyFile={busyFile}
                   onToggle={toggleMark}
                   onQuickAction={handleQuickAction}
+                  onRename={handleRename}
                   onImageDoubleClick={openLightbox}
                 />
               ))}
