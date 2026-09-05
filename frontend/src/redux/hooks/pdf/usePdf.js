@@ -8,16 +8,17 @@ export function usePdf() {
         (state) => state.pdf
     )
 
+    // Both take the owning project — PDFs are never global.
     const upload = useCallback(
-        async (file, section = 'general') => {
-            return dispatch(uploadPdf({ file, section }))
+        async (file, projectId, section = 'general') => {
+            return dispatch(uploadPdf({ file, projectId, section }))
         },
         [dispatch]
     )
 
     const fetchAll = useCallback(
-        (section = 'general') => {
-            dispatch(fetchPdfs(section))
+        (projectId, section = 'general') => {
+            dispatch(fetchPdfs({ projectId, section }))
         },
         [dispatch]
     )

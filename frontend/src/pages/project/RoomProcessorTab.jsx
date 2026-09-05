@@ -239,17 +239,24 @@ export function RoomProcessorTab({ project }) {
   const images = project?.diagrams || [];
   const projectId = project?._id ?? project?.id ?? "";
 
+  // Page numbers restart at 1 in every drawing set, so a bare page number is
+  // ambiguous once a project holds more than one PDF. Key the groups by set +
+  // page, and keep the label as just the page when there is only one set.
   const groupedRooms = useMemo(() => {
+    const setNames = new Set(
+      images.map((img) => img.pdf_name || "").filter(Boolean),
+    );
+    const showSet = setNames.size > 1;
+
     const groups = {};
     images.forEach((img) => {
+      if (!img.rooms || !Array.isArray(img.rooms) || img.rooms.length === 0)
+        return;
       const pageNum = img.page_num || img.page_number || "Unknown Page";
-      if (!groups[pageNum]) groups[pageNum] = [];
-      if (img.rooms && Array.isArray(img.rooms)) {
-        groups[pageNum].push(...img.rooms);
-      }
-    });
-    Object.keys(groups).forEach((key) => {
-      if (groups[key].length === 0) delete groups[key];
+      const setName = img.pdf_name || "";
+      const key = showSet && setName ? `${setName} · Page ${pageNum}` : pageNum;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(...img.rooms);
     });
     return groups;
   }, [images]);
@@ -262,21 +269,6 @@ export function RoomProcessorTab({ project }) {
     );
     setLightboxState({ images: roomsArray, startIndex: Math.max(0, idx) });
   };
-
-  if (Object.keys(groupedRooms).length === 0) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
-        <MousePointer2 className="h-10 w-10 text-muted-foreground/30 mb-4" />
-        <h3 className="text-lg font-semibold text-foreground mb-1">
-          No Rooms Extracted yet
-        </h3>
-        <p className="text-sm">
-          Use the Room Separator tab to cut and save rooms from your pages
-          first.
-        </p>
-      </div>
-    );
-  }
 
   const navigate = useNavigate();
   const { loadOne } = useProjects();
@@ -401,6 +393,24 @@ export function RoomProcessorTab({ project }) {
 
     return () => clearInterval(interval);
   }, [pollingRooms, project._id, project.id, loadOne]);
+
+  // Placed after every hook: an empty project is now the normal starting state,
+  // so returning early above this point would change the hook count between
+  // renders as soon as the first room is saved.
+  if (Object.keys(groupedRooms).length === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
+        <MousePointer2 className="h-10 w-10 text-muted-foreground/30 mb-4" />
+        <h3 className="text-lg font-semibold text-foreground mb-1">
+          No rooms extracted yet
+        </h3>
+        <p className="text-sm max-w-sm">
+          Upload a drawing in the Source tab and extract floor plans from it,
+          then use Room Separator to cut rooms out of a page.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-background">

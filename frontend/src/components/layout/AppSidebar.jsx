@@ -24,7 +24,8 @@ import {
 
 const NAV_ITEMS = [
     { title: "Dashboard", url: "/", icon: LayoutDashboard },
-    { title: "Floor Plans", url: "/floor-plans", icon: FileText },
+    // Floor plans are uploaded and extracted inside a project now, so the
+    // standalone entry has been folded into Projects.
     { title: "Projects", url: "/projects", icon: FolderOpen },
     { title: "Price Register", url: "/price-register", icon: Tags },
     { title: "Vendors", url: "/vendors", icon: Users },

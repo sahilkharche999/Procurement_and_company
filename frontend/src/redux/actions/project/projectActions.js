@@ -75,9 +75,13 @@ export const fetchProjectPages = createAsyncThunk(
 
 export const fetchAvailablePages = createAsyncThunk(
     'projects/fetchAvailablePages',
-    async (id, { rejectWithValue }) => {
+    // Accepts a bare id, or { id, pdfId } to narrow the list to one drawing set.
+    async (arg, { rejectWithValue }) => {
+        const id = typeof arg === 'object' && arg !== null ? arg.id : arg
+        const pdfId = typeof arg === 'object' && arg !== null ? arg.pdfId : ''
         try {
-            const res = await api.get(`/projects/${id}/available-pages`)
+            const query = pdfId ? `?pdf_id=${encodeURIComponent(pdfId)}` : ''
+            const res = await api.get(`/projects/${id}/available-pages${query}`)
             return { id, data: res.data }
         } catch (err) {
             return rejectWithValue(err.response?.data?.detail || err.message)

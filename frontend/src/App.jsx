@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 // Layout
 import { MainLayout } from "./components/layout/MainLayout";
@@ -11,7 +11,6 @@ import { VendorsPage } from "./pages/vendors/VendorsPage";
 import { SettingsPage } from "./pages/settings/SettingsPage";
 import { ItemTypesSettingsPage } from "./pages/settings/items-types/ItemTypesSettingsPage";
 import { UnitsSettingsPage } from "./pages/settings/units/UnitsSettingsPage";
-import { FloorPlanPage } from "./pages/floorplan/FloorPlanPage";
 import { ProjectsPage } from "./pages/project/ProjectsPage";
 import { ProjectEditorPage } from "./pages/project/ProjectEditorPage";
 import { PriceRegisterPage } from "./pages/price-register/PriceRegisterPage";
@@ -26,7 +25,10 @@ function App() {
           <Route index element={<DashboardPage />} />
           <Route path="budget" element={<BudgetPage />} />
           <Route path="vendors" element={<VendorsPage />} />
-          <Route path="floor-plans" element={<FloorPlanPage />} />
+          {/* Uploading and extracting now happen inside a project. The old
+              standalone page could process any PDF in the database, including
+              another project's. Old bookmarks land on the project list. */}
+          <Route path="floor-plans" element={<Navigate to="/projects" replace />} />
           <Route path="projects" element={<ProjectsPage />} />
           <Route path="price-register" element={<PriceRegisterPage />} />
           <Route path="settings" element={<SettingsPage />} />

@@ -12,7 +12,7 @@ const TABS = [
     key: "source",
     label: "Source",
     icon: Database,
-    desc: "Manage source images",
+    desc: "Upload drawings & pick which to use",
   },
   {
     key: "room_separator",

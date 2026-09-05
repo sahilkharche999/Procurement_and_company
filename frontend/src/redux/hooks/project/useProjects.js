@@ -81,9 +81,9 @@ export function useProjects() {
         [dispatch]
     )
 
-    /** Load all available pages (from sectioned_crops) for a project */
+    /** Load available pages for a project, optionally narrowed to one PDF */
     const loadAvailablePages = useCallback(
-        (id) => dispatch(fetchAvailablePages(id)),
+        (id, pdfId = '') => dispatch(fetchAvailablePages({ id, pdfId })),
         [dispatch]
     )
 

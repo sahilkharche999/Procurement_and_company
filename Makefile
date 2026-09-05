@@ -12,26 +12,30 @@ help:
 	@echo "  rebuild        - Rebuild images and restart services"
 
 build-images:
-	chmod +x scripts/build_images.sh
-	./scripts/build_images.sh
+	# Build through compose so image names and build args live in one place.
+	if docker compose version >/dev/null 2>&1; then \
+		docker compose --env-file .env -f docker-compose.yml build; \
+	else \
+		docker-compose --env-file .env -f docker-compose.yml build; \
+	fi
 
 up:
-	# Use system docker compose if available, prefer `docker compose`
+	# --build is required: compose only builds when an image is missing, and
+	# `down` leaves images behind, so without it a deploy reuses stale code.
 	if docker compose version >/dev/null 2>&1; then \
-		docker compose --env-file .env -f docker-compose.yml up -d; \
+		docker compose --env-file .env -f docker-compose.yml up -d --build; \
 	else \
-		docker-compose --env-file .env -f docker-compose.yml up -d; \
+		docker-compose --env-file .env -f docker-compose.yml up -d --build; \
 	fi
 
 down:
 	if docker compose version >/dev/null 2>&1; then \
-		docker compose -f docker-compose.yml down; \
+		docker compose --env-file .env -f docker-compose.yml down; \
 	else \
-		docker-compose -f docker-compose.yml down; \
+		docker-compose --env-file .env -f docker-compose.yml down; \
 	fi
 
 rebuild:
-	$(MAKE) build-images
 	$(MAKE) down
 	echo "Waiting 1s for resources to free..."
 	sleep 1

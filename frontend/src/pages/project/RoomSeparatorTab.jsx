@@ -14,6 +14,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { useProjects } from "../../redux/hooks/project/useProjects";
 import { buildServerUrl } from "../../config";
+import { getProjectImages } from "../../lib/projectImages";
 
 // Helper for polygon SVG rendering
 const toSvgPoints = (polygon, width, height) => {
@@ -248,8 +249,7 @@ function DrawingCanvas({ image, drawnRooms, setDrawnRooms }) {
 
 export function RoomSeparatorTab({ project }) {
   const { loadOne } = useProjects();
-  const images =
-    project?.diagrams || project?.selected_diagram_metadata?.images || [];
+  const images = getProjectImages(project);
   const [selectedIdx, setSelectedIdx] = useState(0);
 
   const [sessionRooms, setSessionRooms] = useState({});

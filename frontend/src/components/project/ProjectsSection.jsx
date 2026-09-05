@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useProjects } from "../../redux/hooks/project/useProjects";
+import { CreateProjectDialog } from "./CreateProjectDialog";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import {
@@ -33,13 +34,22 @@ function formatDate(iso) {
 
 export function ProjectsSection() {
   const navigate = useNavigate();
-  const { projects, loading, remove, rename, downloadMetadata, load } =
+  const { projects, loading, remove, rename, downloadMetadata, load, create } =
     useProjects();
   const [deletingId, setDeletingId] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [editingName, setEditingName] = useState("");
   const [savingId, setSavingId] = useState(null);
+  const [creating, setCreating] = useState(false);
+
+  //Create the project, then go straight into it so drawings can be added
+  const handleCreate = async (data) => {
+    const result = await create(data);
+    const newId = getId(result?.payload);
+    if (!result?.error && newId) navigate(`/projects/${newId}`);
+    return result;
+  };
 
   useEffect(() => {
     load();
@@ -93,6 +103,12 @@ export function ProjectsSection() {
   };
 
   return (
+    <>
+    <CreateProjectDialog
+      open={creating}
+      onOpenChange={setCreating}
+      onCreate={handleCreate}
+    />
     <Card className="col-span-full">
       <CardHeader className="pb-4">
         <div className="flex items-center justify-between">
@@ -110,7 +126,7 @@ export function ProjectsSection() {
           <Button
             size="sm"
             className="gap-1.5 bg-gradient-to-r from-violet-500 to-indigo-500 hover:from-violet-600 hover:to-indigo-600 text-white border-0 shadow-md shadow-violet-500/20"
-            onClick={() => navigate("/floor-plans")}
+            onClick={() => setCreating(true)}
           >
             <Plus className="h-3.5 w-3.5" />
             New Project
@@ -142,10 +158,10 @@ export function ProjectsSection() {
               size="sm"
               variant="outline"
               className="gap-1.5"
-              onClick={() => navigate("/floor-plans")}
+              onClick={() => setCreating(true)}
             >
               <Plus className="h-3.5 w-3.5" />
-              Go to Floor Plans
+              Create your first project
             </Button>
           </div>
         )}
@@ -308,5 +324,6 @@ export function ProjectsSection() {
         )}
       </CardContent>
     </Card>
+    </>
   );
 }
