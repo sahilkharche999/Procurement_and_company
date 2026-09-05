@@ -12,20 +12,20 @@ help:
 	@echo "  rebuild        - Rebuild images and restart services"
 
 build-images:
-	# Build through compose so image names and build args live in one place.
-	if docker compose version >/dev/null 2>&1; then \
-		docker compose --env-file .env -f docker-compose.yml build; \
-	else \
-		docker-compose --env-file .env -f docker-compose.yml build; \
-	fi
+	# Builds with the classic `docker build`; the deploy host's buildx is older
+	# than `docker compose build` accepts. The script tags the images with the
+	# same names docker-compose.yml runs, and passes VITE_SERVER_URL.
+	chmod +x scripts/build_images.sh
+	./scripts/build_images.sh
 
 up:
-	# --build is required: compose only builds when an image is missing, and
-	# `down` leaves images behind, so without it a deploy reuses stale code.
+	# --no-build: images are produced by `make build-images` above. Compose is
+	# not allowed to build here because that path needs a newer buildx than the
+	# server has, and it would fail mid-deploy with the containers already down.
 	if docker compose version >/dev/null 2>&1; then \
-		docker compose --env-file .env -f docker-compose.yml up -d --build; \
+		docker compose --env-file .env -f docker-compose.yml up -d --no-build; \
 	else \
-		docker-compose --env-file .env -f docker-compose.yml up -d --build; \
+		docker-compose --env-file .env -f docker-compose.yml up -d; \
 	fi
 
 down:
@@ -36,6 +36,10 @@ down:
 	fi
 
 rebuild:
+	# Build first, while the running containers keep serving. A build that fails
+	# then leaves production untouched instead of stopped — the old order took
+	# everything down before finding out whether the new images were usable.
+	$(MAKE) build-images
 	$(MAKE) down
 	echo "Waiting 1s for resources to free..."
 	sleep 1
