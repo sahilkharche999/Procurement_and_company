@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Form, BackgroundTasks
 from db.mongo import get_diagrams_collection, get_pages_collection, get_pdf_documents_collection, get_processing_jobs_collection
 from schemas.budget import JobOut
 from services.pdf_processing import run_processing, get_yolo_status
+import services.project_pdf_service as pdf_svc
 from config import LOCAL_FILE_DB, BASE_DIR
 
 router = APIRouter(prefix="/floorplan", tags=["Floorplan"])
@@ -27,25 +28,72 @@ def _pdf_bucket_name(pdf_id: str) -> str:
     return f"pdf_{safe or 'unknown'}"
 
 
+async def _guard_reprocessing(pdf_id: str, force: bool) -> None:
+    """
+    Refuse to re-extract a PDF that other work already depends on.
+
+    Extraction deletes and recreates this PDF's pages and diagrams with new
+    ObjectIds. Rooms hold a hard `diagram` reference, so any room drawn on the
+    old diagrams would be stranded — along with its masks, groups and budget
+    items. This is enforced here rather than in the UI because a stale tab, a
+    double-click or a direct API call all bypass a hidden button.
+    """
+    if force:
+        return
+
+    deps = await pdf_svc.get_pdf_dependencies(pdf_id)
+    if deps["room_count"] == 0 and deps["budget_count"] == 0:
+        return
+
+    raise HTTPException(
+        status_code=409,
+        detail=(
+            f"This drawing has already been extracted and "
+            f"{pdf_svc.describe_dependencies(deps)} depend on it. "
+            f"Re-extracting would delete the drawings those rooms were traced on."
+        ),
+    )
+
+
+async def _guard_concurrent_job(pdf_id: str) -> None:
+    """One extraction at a time per PDF; two would race on the same documents."""
+    state = await pdf_svc.resolve_extraction_state(pdf_id)
+    if state["extraction_status"] == pdf_svc.PROCESSING:
+        raise HTTPException(
+            status_code=409,
+            detail="This drawing is already being extracted. Wait for it to finish.",
+        )
+
+
 @router.post("/process")
 async def start_processing(
         background_tasks: BackgroundTasks,
         pdf_id: str = Form(...),
         dpi: int = Form(300),
-        min_area_pct: float = Form(5.0)
+        min_area_pct: float = Form(5.0),
+        force: bool = Form(False),
 ):
     dpi = 300
     pdf_docs_coll = get_pdf_documents_collection()
+    if not ObjectId.is_valid(pdf_id):
+        raise HTTPException(400, "Invalid pdf_id")
     pdf_doc = await pdf_docs_coll.find_one({"_id": ObjectId(pdf_id)})
     if not pdf_doc:
         raise HTTPException(404, "PDF not found")
-    pdf_path = _resolve_pdf_abs_path(pdf_doc)
-    if not os.path.exists(pdf_path):
-        raise HTTPException(404, "PDF file missing on disk")
 
     project_id = pdf_doc.get("project_id")
     if not project_id:
         raise HTTPException(400, "PDF is not associated with a MongoDB project")
+
+    # Guards run before any filesystem work: whether this drawing may be
+    # re-extracted at all is a more fundamental answer than whether its file is
+    # currently readable, and it must not depend on infrastructure state.
+    await _guard_concurrent_job(pdf_id)
+    await _guard_reprocessing(pdf_id, force)
+
+    pdf_path = _resolve_pdf_abs_path(pdf_doc)
+    if not os.path.exists(pdf_path):
+        raise HTTPException(404, "PDF file missing on disk")
 
     # Path: local_file_db/project_{project_id}/pdf_processing/pdf_{pdf_id}/
     job_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "pdf_processing", _pdf_bucket_name(pdf_id))
@@ -77,9 +125,10 @@ async def create_floorplan_processing_job(
     background_tasks: BackgroundTasks,
     pdf_id: str = Form(...),
     dpi: int = Form(300),
-    min_area_pct: float = Form(5.0)
+    min_area_pct: float = Form(5.0),
+    force: bool = Form(False),
 ):
-    return await start_processing(background_tasks, pdf_id, dpi, min_area_pct)
+    return await start_processing(background_tasks, pdf_id, dpi, min_area_pct, force)
 
 
 @router.get("/job/{job_id}")

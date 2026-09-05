@@ -176,8 +176,19 @@ def _sync_update_mongodb_project(project_id: str, pdf_id: str, page_paths: list,
         pages_coll = db["pages"]
         diagrams_coll = db["diagrams"]
 
-        # we might need to find project_source by project_id
-        project_source = project_sources_coll.find_one({"project": ObjectId(project_id)})
+        # Source records are per-PDF. Prefer the one for this PDF; fall back to a
+        # legacy project-wide record (written before projects could hold several
+        # PDFs) and claim it for this PDF so the page list stops being shared.
+        project_source = project_sources_coll.find_one({"pdf_id": str(pdf_id)})
+        if not project_source:
+            project_source = project_sources_coll.find_one(
+                {"project": ObjectId(project_id), "pdf_id": {"$exists": False}}
+            )
+            if project_source:
+                project_sources_coll.update_one(
+                    {"_id": project_source["_id"]},
+                    {"$set": {"pdf_id": str(pdf_id)}},
+                )
         project_source_id = project_source["_id"] if project_source else None
 
         # touch project updated timestamp
@@ -256,6 +267,17 @@ def _sync_update_mongodb_project(project_id: str, pdf_id: str, page_paths: list,
                 {"$set": {"pages": page_ids}}
             )
 
+        # Cache extraction state on the PDF so the drawing cards can be listed
+        # without counting diagrams for every row.
+        db["pdf_documents"].update_one(
+            {"_id": ObjectId(pdf_id)},
+            {"$set": {
+                "extraction_status": "extracted",
+                "diagram_count": len(all_images),
+                "extracted_at": datetime.now().isoformat(),
+            }},
+        )
+
         client.close()
     except Exception as e:
         print(f"[MongoDB] ❌ sync update failed: {e}")
@@ -280,6 +302,12 @@ def run_processing(job_id: str, pdf_path: str, dpi: int, min_area_pct: float):
     os.makedirs(temp_dir, exist_ok=True)
     os.makedirs(main_crops_dir, exist_ok=True)
     os.makedirs(extracted_dir, exist_ok=True)
+
+    if ObjectId.is_valid(pdf_id):
+        db["pdf_documents"].update_one(
+            {"_id": ObjectId(pdf_id)},
+            {"$set": {"extraction_status": "processing", "last_job_id": job_id}},
+        )
 
     try:
         _update_job(jobs_coll, job_id, status="processing", step="Step 1/3 — Converting PDF to images (300 DPI)",
@@ -356,5 +384,10 @@ def run_processing(job_id: str, pdf_path: str, dpi: int, min_area_pct: float):
         _update_job(jobs_coll, job_id, status="done", step="Complete — all steps finished", progress=100)
     except Exception as e:
         _update_job(jobs_coll, job_id, status="error", error_msg=str(e), progress=0, step=f"Error: {str(e)}")
+        if ObjectId.is_valid(pdf_id):
+            db["pdf_documents"].update_one(
+                {"_id": ObjectId(pdf_id)},
+                {"$set": {"extraction_status": "failed"}},
+            )
     finally:
         client.close()

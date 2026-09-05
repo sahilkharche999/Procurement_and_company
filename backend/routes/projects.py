@@ -21,11 +21,13 @@ from db.mongo import (
     get_pages_collection,
     get_groups_collection,
     get_masks_collection,
+    get_pdf_documents_collection,
 )
 from models.project import ProjectCreate, ProjectOut, ProjectUpdate
 from services import project_service
 from services.project_service import LOCAL_FILE_DB
 from services.v2_room_analysis_orchestrator import run_room_analysis_pipeline
+import services.project_pdf_service as pdf_svc
 
 router = APIRouter(prefix="/projects", tags=["Projects"])
 
@@ -131,18 +133,40 @@ async def delete_project(project_id: str):
     return {"ok": True, "deleted_id": project_id}
 
 
+# ── Drawing sets (architectural PDFs uploaded to this project) ─────────────────
+@router.get("/{project_id}/pdfs")
+async def list_project_pdfs(project_id: str):
+    """
+    Every architectural PDF uploaded to this project, each with its extraction
+    state and live job progress. Backs the drawing cards in the Source tab.
+    """
+    if not ObjectId.is_valid(project_id):
+        raise HTTPException(status_code=400, detail="Invalid project id")
+    exists = await get_projects_collection().find_one({"_id": ObjectId(project_id)}, {"_id": 1})
+    if not exists:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return await pdf_svc.list_project_pdfs(project_id)
+
+
 # ── Internal Pages (available in extracted_diagrams dir) ───────────────────────
 @router.get("/{project_id}/available-pages")
-async def get_available_pages(project_id: str):
+async def get_available_pages(project_id: str, pdf_id: str = ""):
     """
     Returns all detected diagrams for this project from MongoDB.
     Used in the 'Add Pages' tab of the Source manager.
+
+    Pass `pdf_id` to narrow the list to one drawing set — without it a project
+    with several PDFs returns every diagram from all of them at once.
     """
     diagrams_coll = get_diagrams_collection()
     pages_coll = get_pages_collection()
+    pdf_docs_coll = get_pdf_documents_collection()
 
     project_filter = ObjectId(project_id) if ObjectId.is_valid(project_id) else project_id
-    diagrams = await diagrams_coll.find({"project": project_filter}).to_list(length=None)
+    diagram_filter = {"project": project_filter}
+    if pdf_id:
+        diagram_filter["pdf_id"] = {"$in": pdf_svc.id_variants(pdf_id)}
+    diagrams = await diagrams_coll.find(diagram_filter).to_list(length=None)
 
     page_ids = [d.get("page") for d in diagrams if d.get("page")]
     page_map = {}
@@ -150,8 +174,21 @@ async def get_available_pages(project_id: str):
         pages = await pages_coll.find({"_id": {"$in": page_ids}}).to_list(length=None)
         page_map = {p["_id"]: p.get("page_no", 0) for p in pages}
 
+    # Label each diagram with the drawing set it came from — page numbers restart
+    # at 1 in every PDF, so the page number alone is ambiguous.
+    pdf_ids = {str(d.get("pdf_id")) for d in diagrams if d.get("pdf_id")}
+    pdf_name_map = {}
+    valid_pdf_oids = [ObjectId(p) for p in pdf_ids if ObjectId.is_valid(p)]
+    if valid_pdf_oids:
+        pdf_docs = await pdf_docs_coll.find({"_id": {"$in": valid_pdf_oids}}).to_list(length=None)
+        pdf_name_map = {
+            str(p["_id"]): p.get("original_name") or p.get("filename", "")
+            for p in pdf_docs
+        }
+
     images = []
     for d in diagrams:
+        d_pdf_id = str(d.get("pdf_id") or "")
         images.append({
             "id": str(d["_id"]),
             "filename": d.get("filename", ""),
@@ -160,9 +197,12 @@ async def get_available_pages(project_id: str):
             "sub_index": d.get("sub_index", 0),
             "url": d.get("diagram_image_url", ""),
             "is_selected": d.get("is_selected", False),
+            "pdf_id": d_pdf_id,
+            "pdf_name": pdf_name_map.get(d_pdf_id, ""),
         })
 
-    images.sort(key=lambda x: (x.get("page_num", 0), x.get("sub_index", 0), x.get("filename", "")))
+    images.sort(key=lambda x: (x.get("pdf_name", ""), x.get("page_num", 0),
+                               x.get("sub_index", 0), x.get("filename", "")))
     return {"images": images, "total": len(images)}
 
 
@@ -300,7 +340,22 @@ async def upload_image_to_mongo_project(
         page_number: int = Form(1),
         label: str = Form("UPLOADED")
 ):
-    """Upload a custom image directly into the project's storage."""
+    """
+    Upload a floorplan image directly, without going through a PDF.
+
+    The image becomes a real page + diagram, exactly like an extracted one. It
+    used to be pushed only into `selected_diagram_metadata`, which left it
+    invisible to the project aggregation and unusable for room extraction —
+    both of those read the `diagrams` collection.
+    """
+    if not ObjectId.is_valid(project_id):
+        raise HTTPException(status_code=400, detail="Invalid project id")
+
+    projects_coll = get_projects_collection()
+    project = await projects_coll.find_one({"_id": ObjectId(project_id)})
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
     # Create project-specific upload dir
     upload_dir = os.path.join(LOCAL_FILE_DB, f"project_{project_id}", "uploads")
     os.makedirs(upload_dir, exist_ok=True)
@@ -313,19 +368,77 @@ async def upload_image_to_mongo_project(
         f.write(content)
 
     url = f"/local_file_db/project_{project_id}/uploads/{filename}"
+
+    project_oid = ObjectId(project_id)
+    pages_coll = get_pages_collection()
+    diagrams_coll = get_diagrams_collection()
+
+    try:
+        page_no = max(1, int(page_number))
+    except (TypeError, ValueError):
+        page_no = 1
+
+    # Uploaded images have no source PDF, so they share a page per page number.
+    page = await pages_coll.find_one({
+        "project": project_oid,
+        "page_no": page_no,
+        "pdf_id": {"$in": [None, ""]},
+    })
+    if page:
+        page_id = page["_id"]
+        await pages_coll.update_one({"_id": page_id}, {"$set": {"is_selected": True}})
+    else:
+        page_result = await pages_coll.insert_one({
+            "project": project_oid,
+            "project_source": None,
+            "pdf_id": None,
+            "page_no": page_no,
+            "is_selected": True,
+            "page_image_url": url,
+            "diagrams": [],
+        })
+        page_id = page_result.inserted_id
+
+    sub_index = await diagrams_coll.count_documents({"project": project_oid, "page": page_id})
+
+    diagram_result = await diagrams_coll.insert_one({
+        "project": project_oid,
+        "page": page_id,
+        "pdf_id": None,
+        "diagram_seq": chr(ord("a") + min(sub_index, 25)),
+        "diagram_image_url": url,
+        "filename": filename,
+        "label": label,
+        "sub_index": sub_index,
+        "is_selected": True,
+        "source": "uploaded",
+        "rooms": [],
+    })
+    diagram_id = diagram_result.inserted_id
+    await pages_coll.update_one({"_id": page_id}, {"$addToSet": {"diagrams": diagram_id}})
+
     new_img = {
+        "id": str(diagram_id),
+        "diagram_id": str(diagram_id),
         "filename": filename,
         "url": url,
-        "page_number": page_number,
+        "page_number": page_no,
         "label": label,
-        "source": "uploaded"
+        "sub_index": sub_index,
+        "source": "uploaded",
     }
 
-    # Update project in Mongo
-    col = get_projects_collection()
-    await col.update_one(
-        {"_id": ObjectId(project_id)},
-        {"$push": {"selected_diagram_metadata.images": new_img}}
+    metadata = project.get("selected_diagram_metadata") or {}
+    images = list(metadata.get("images") or [])
+    images.append(new_img)
+    metadata["images"] = images
+    metadata["total"] = len(images)
+    metadata["updated_at"] = datetime.utcnow().isoformat()
+
+    await projects_coll.update_one(
+        {"_id": project_oid},
+        {"$set": {"selected_diagram_metadata": metadata,
+                  "updated_at": datetime.utcnow().isoformat()}},
     )
 
     return {"ok": True, "image": new_img}

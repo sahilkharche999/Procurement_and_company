@@ -16,6 +16,7 @@ from db.mongo import (
     get_projects_collection,
     get_diagrams_collection,
     get_pages_collection,
+    get_pdf_documents_collection,
     get_rooms_collection
 )
 
@@ -78,6 +79,21 @@ async def get_project_by_id(project_id: str) -> dict | None:
         cursor = diagrams_coll.find({"project": obj_project_id, "is_selected": True})
         diagrams = await cursor.to_list(length=None)
 
+        # Resolve the drawing set each diagram came from, in one query.
+        pdf_name_map = {}
+        pdf_oids = [
+            ObjectId(str(d["pdf_id"])) for d in diagrams
+            if d.get("pdf_id") and ObjectId.is_valid(str(d["pdf_id"]))
+        ]
+        if pdf_oids:
+            pdf_docs = await get_pdf_documents_collection().find(
+                {"_id": {"$in": pdf_oids}}
+            ).to_list(length=None)
+            pdf_name_map = {
+                str(p["_id"]): p.get("original_name") or p.get("filename", "")
+                for p in pdf_docs
+            }
+
         for diag in diagrams:
             # 2. Extract relative Page document for `page_num` mapping
             page_num = 1
@@ -111,6 +127,7 @@ async def get_project_by_id(project_id: str) -> dict | None:
                 })
 
             # Append derived relational hierarchy naturally onto the response payload
+            diag_pdf_id = str(diag.get("pdf_id") or "")
             doc["diagrams"].append({
                 "id": str(diag["_id"]),
                 "filename": diag.get("filename", ""),
@@ -121,7 +138,11 @@ async def get_project_by_id(project_id: str) -> dict | None:
                 "url": diag.get("diagram_image_url", ""),
                 "saved_path": "",  # Omitted if pure storage, can be derived
                 "rooms": formatted_rooms,
-                "is_selected": True
+                "is_selected": True,
+                # Page numbers restart at 1 in every PDF, so the UI needs the
+                # drawing set to disambiguate them.
+                "pdf_id": diag_pdf_id,
+                "pdf_name": pdf_name_map.get(diag_pdf_id, ""),
             })
 
     except Exception as e:
